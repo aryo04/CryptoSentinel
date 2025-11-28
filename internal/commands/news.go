@@ -5,80 +5,122 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 )
 
 var newsHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
-type cgStatusResponse struct {
-	StatusUpdates []struct {
-		Project struct {
-			Name   string `json:"name"`
-			Symbol string `json:"symbol"`
-		} `json:"project"`
+// Response minimal dari NewsData.io
+type newsdataResponse struct {
+	Status       string `json:"status"`
+	TotalResults int    `json:"totalResults"`
+	Results      []struct {
+		Title       string `json:"title"`
+		Link        string `json:"link"`
 		Description string `json:"description"`
-		Category    string `json:"category"`
-		CreatedAt   string `json:"created_at"`
-	} `json:"status_updates"`
+		SourceID    string `json:"source_id"`
+		PubDate     string `json:"pubDate"`
+	} `json:"results"`
 }
 
-// CmdNews mengambil "status_updates" dari CoinGecko.
-// Kalau API lagi 404 / error, kita balas pesan ramah ke user, bukan error mentah.
-func CmdNews(ctx context.Context, _ []string) (string, error) {
-	url := "https://api.coingecko.com/api/v3/status_updates?category=general&per_page=6&page=1"
+// CmdNews
+// - "news"        -> crypto news umum
+// - "news solana" -> news dengan query "solana"
+func CmdNews(ctx context.Context, args []string) (string, error) {
+	apiKey := os.Getenv("NEWSDATA_API_KEY")
+	if apiKey == "" {
+		// Jangan bikin agent crash, kasih pesan ramah saja
+		return "News service is not configured (missing NEWSDATA_API_KEY).", nil
+	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	// Query default: crypto market
+	query := "crypto OR bitcoin OR ethereum"
+	if len(args) > 0 {
+		query = strings.TrimSpace(strings.Join(args, " "))
+		if query == "" {
+			query = "crypto OR bitcoin OR ethereum"
+		}
+	}
+
+	params := url.Values{}
+	params.Set("apikey", apiKey)
+	params.Set("q", query)
+	params.Set("language", "en")
+	// kategori bisa disesuaikan, tapi business + crypto biasanya cukup
+	params.Set("category", "business,technology")
+
+	endpoint := "https://newsdata.io/api/1/news?" + params.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		// Ini betul-betul error internal (jarang terjadi)
 		return "", err
 	}
 	req.Header.Set("User-Agent", "CryptoSentinelAI/1.0")
 
 	resp, err := newsHTTPClient.Do(req)
 	if err != nil {
-		return "⚠️ Failed to reach news provider. Please try again later.", nil
+		return "❌ Failed to reach NewsData.io. Please try again later.", nil
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNotFound {
-		return "❌ News feed is currently unavailable (status 404). Please try again later.", nil
-	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Sprintf("⚠️ News service returned status %d. Please try again later.", resp.StatusCode), nil
+		return fmt.Sprintf("❌ News feed is currently unavailable (status %d). Please try again later.", resp.StatusCode), nil
 	}
 
-	var data cgStatusResponse
+	var data newsdataResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return "⚠️ Failed to decode news response from provider.", nil
+		return "❌ Failed to decode news data from NewsData.io.", nil
 	}
-	if len(data.StatusUpdates) == 0 {
-		return "No fresh updates from CoinGecko right now.", nil
+	if len(data.Results) == 0 {
+		return "No recent crypto news found for your query.", nil
 	}
 
 	var b strings.Builder
-	b.WriteString("📰 Latest crypto market updates (CoinGecko)\n\n")
+	if len(args) == 0 {
+		b.WriteString("📰 Crypto market headlines (NewsData.io)\n\n")
+	} else {
+		b.WriteString(fmt.Sprintf("📰 News for \"%s\" (NewsData.io)\n\n", query))
+	}
 
 	max := 5
-	if len(data.StatusUpdates) < max {
-		max = len(data.StatusUpdates)
+	if len(data.Results) < max {
+		max = len(data.Results)
 	}
 
 	for i := 0; i < max; i++ {
-		u := data.StatusUpdates[i]
-		desc := strings.TrimSpace(u.Description)
-		if desc == "" {
-			desc = "(no description)"
+		r := data.Results[i]
+
+		title := strings.TrimSpace(r.Title)
+		if title == "" {
+			title = "(no title)"
 		}
-		line := fmt.Sprintf(
-			"%d) [%s / %s]\n   %s\n   Time: %s\n\n",
-			i+1,
-			u.Project.Name,
-			strings.ToUpper(u.Project.Symbol),
-			desc,
-			u.CreatedAt,
-		)
-		b.WriteString(line)
+		src := strings.TrimSpace(r.SourceID)
+		if src == "" {
+			src = "unknown source"
+		}
+		desc := strings.TrimSpace(r.Description)
+		if desc != "" {
+			// batasi biar ga kepanjangan
+			if len(desc) > 220 {
+				desc = desc[:217] + "..."
+			}
+		}
+
+		fmt.Fprintf(&b, "%d) %s\n", i+1, title)
+		fmt.Fprintf(&b, "   Source: %s\n", src)
+		if desc != "" {
+			fmt.Fprintf(&b, "   %s\n", desc)
+		}
+		if r.PubDate != "" {
+			fmt.Fprintf(&b, "   Time: %s\n", r.PubDate)
+		}
+		if r.Link != "" {
+			fmt.Fprintf(&b, "   Link: %s\n", r.Link)
+		}
+		b.WriteString("\n")
 	}
 
 	return b.String(), nil
