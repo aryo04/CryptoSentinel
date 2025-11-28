@@ -3,75 +3,132 @@ package commands
 func HelpText() string {
 	return `📘 CryptoSentinel AI — Command Guide
 
-price [symbol]
-  Get real-time price and market data for a coin.
-  Example: price btc
+Core:
+  price [symbol]
+    Get real-time price and market data for a coin.
+    Example:
+      price btc
 
-compare [symbol1] [symbol2]
-  Compare two assets side by side.
-  Example: compare btc eth
+  compare [symbol1] [symbol2]
+    Compare two assets side by side.
+    Example:
+      compare btc eth
 
-tvl [protocol]
-  Show DeFi protocol TVL (Total Value Locked) from DefiLlama.
-  Examples:
-    tvl uniswap
-    tvl curve-finance
+  digest [daily|now]
+    Market summary for top 5 coins by market cap.
+    Examples:
+      digest
+      digest daily
 
-tvlchain [chain]
-  Show total TVL for a blockchain network.
-  Examples:
-    tvlchain ethereum
-    tvlchain solana
+DeFi & TVL:
+  tvl [protocol]
+    Show DeFi protocol TVL (Total Value Locked) from DefiLlama.
+    Use protocol slug style:
+      tvl uniswap
+      tvl curve-finance
 
-tvlprotocols [chain]
-  Show top DeFi protocols on a chain by TVL.
-  Examples:
-    tvlprotocols arbitrum
-    tvlprotocols avalanche
+  tvlchain [chain]
+    Show total TVL per chain.
+    Example:
+      tvlchain ethereum
 
-top [limit]
-  List top coins by market cap.
-  Examples:
-    top
-    top 20
+  tvlprotocols [chain]
+    Show top protocols by TVL on a specific chain.
+    Example:
+      tvlprotocols arbitrum
 
-digest [daily|now]
-  Market summary for top 5 coins.
+Market lists:
+  top [limit]
+    List top coins by market cap (default 10, max 50).
+    Examples:
+      top
+      top 20
 
-convert [amount] [from] [to]
-  Convert between coins/fiat.
+  gainers [limit]
+    Top daily gainers among large-cap coins (CoinGecko).
+    Example:
+      gainers 15
 
-gainers_cex [limit]
-  Show top gainers on major CEX (Coinbase, OKX, MEXC, KuCoin, Bitget).
+  losers [limit]
+    Top daily losers among large-cap coins (CoinGecko).
+    Example:
+      losers 15
 
-gainers_compare [limit] [cex1] [cex2]
-  Compare top gainers between two CEX.
+CEX gainers:
+  gainers_cex [limit]
+    Show top gainers on major CEX (Coinbase, OKX, MEXC, KuCoin, Bitget).
+    Examples:
+      gainers_cex
+      gainers_cex 10
 
-alert [symbol] [condition]
-  Create price alert.
+  gainers_compare [limit] [cex1] [cex2]
+    Compare top gainers between two supported CEX.
+    Supported CEX:
+      coinbase, okx, mexc, kucoin, bitget
+    Examples:
+      gainers_compare 5 coinbase okx
+      gainers_compare 3 mexc kucoin
 
-alert_list
-  Show all alerts.
+Conversions:
+  convert [amount] [from] [to]
+    Convert between coins/fiat using CoinGecko prices.
+    Examples:
+      convert 1 btc eth
+      convert 250 usdt sol
+      convert 1000 usd eth
 
-alert_remove [index]
-  Remove an alert.
+Sentiment:
+  feargreed
+    Show the Crypto Fear & Greed Index (alternative.me).
 
-alert_clear
-  Remove all alerts.
-  
-gainers [limit]
-  Show top daily gainers (CoinGecko).
-  Examples:
-  gainers limit 10
+News:
+  news
+    Show latest crypto-related status updates from CoinGecko.
 
-losers [limit]
-  Show top daily losers (CoinGecko).
-  Examples:
-  losers limit 10
+Gas tracker:
+  gas [chain]
+    Show current gas prices for a chain using Owlracle.
+    Supported chains:
+      ethereum, arbitrum, base, bsc, polygon, optimism,
+      avalanche, fantom, gnosis, celo
+    Examples:
+      gas ethereum
+      gas arbitrum
 
-feargreed
-  Show the global Crypto Fear & Greed Index.
+DEX price:
+  dexprice [token] [chain]
+    Get on-chain DEX price from Dexscreener.
+    Examples:
+      dexprice pepe ethereum
+      dexprice bonk solana
 
-help
-  Show this help message again.`
+Portfolio:
+  portfolio [address]
+    Show DeFi/crypto portfolio summary for a wallet via DeBank.
+    Example:
+      portfolio 0x1234...abcd
+
+Alerts:
+  alert [symbol] [condition]
+    Create a price alert with operator >, <, >=, <=.
+    Examples:
+      alert btc >65000
+      alert eth <=3000
+
+  alert_list
+    Show all active alerts.
+
+  alert_remove [index]
+    Remove an alert by its index (see alert_list).
+    Example:
+      alert_remove 1
+
+  alert_clear
+    Remove all alerts.
+
+Meta:
+  help
+    Show this help message again.
+    Example:
+      help`
 }
