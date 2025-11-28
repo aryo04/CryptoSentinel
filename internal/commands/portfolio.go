@@ -167,7 +167,7 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 
 	if nonZero == 0 {
 		return fmt.Sprintf(
-			"Portfolio appears empty or Covalent returned 0 USD value for address %s on %s.\nIni bisa terjadi kalau hanya ada token kecil / illiquid yang tidak punya harga fiat di Covalent.",
+			"Portfolio appears empty or Covalent returned 0 USD value for address %s on %s.\nThis can happen if there are only small/illiquid tokens that do not have a fiat price on Covalent.",
 			address, chainInput,
 		), nil
 	}
