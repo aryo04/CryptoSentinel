@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discord
+    url: https://discord.com/invite/teneoprotocol
+    about: Join our Discord for help and discussions!
+- name: 📚 Documentation
+    url: https://teneo-protocol.ai/agent-sdk
+    about: Find setup guides and learn how to use Teneo Agent SDK
