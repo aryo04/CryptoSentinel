@@ -9,13 +9,18 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"io"
 
 	"teneo-agent-demo1/internal/models"
 )
 
+// CEX yang dipakai agent sekarang:
+// - coinbase (Coinbase Exchange, spot USD pairs besar saja)
+// - okx
+// - mexc
+// - kucoin
+// - bitget
 func SupportedCexList() []string {
-	return []string{"binance", "okx", "bybit", "kucoin", "bitget"}
+	return []string{"coinbase", "okx", "mexc", "kucoin", "bitget"}
 }
 
 func IsSupportedCex(name string) bool {
@@ -30,12 +35,12 @@ func IsSupportedCex(name string) bool {
 
 func (c *Clients) FetchCexGainers(ctx context.Context, cex string, limit int) ([]models.CexGainer, error) {
 	switch strings.ToLower(cex) {
-	case "binance":
-		return c.fetchBinanceGainers(ctx, limit)
+	case "coinbase":
+		return c.fetchCoinbaseGainers(ctx, limit)
 	case "okx":
 		return c.fetchOkxGainers(ctx, limit)
-	case "bybit":
-		return c.fetchBybitGainers(ctx, limit)
+	case "mexc":
+		return c.fetchMexcGainers(ctx, limit)
 	case "kucoin":
 		return c.fetchKucoinGainers(ctx, limit)
 	case "bitget":
@@ -45,66 +50,100 @@ func (c *Clients) FetchCexGainers(ctx context.Context, cex string, limit int) ([
 	}
 }
 
-// -------- Binance ----------
-func (c *Clients) fetchBinanceGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
-	endpoint := "https://api.binance.com/api/v3/ticker/24hr"
-
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("binance request error: %w", err)
+//
+// -------- Coinbase (Exchange, public market data) ----------
+//
+// NOTE:
+// - Kita tidak pakai Advanced Trade / brokerage public products
+//   karena butuh Authorization Bearer (JWT).
+// - Sebagai gantinya, pakai Coinbase Exchange Market Data API:
+//   - GET https://api.exchange.coinbase.com/products/{product_id}/stats
+//   - Respons berisi open, last, volume, dll (24 jam).
+// - Untuk menghindari terlalu banyak request, kita batasi
+//   ke beberapa spot pair besar USD saja.
+//
+func (c *Clients) fetchCoinbaseGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
+	// Daftar pair besar di Coinbase (bisa ditambah kalau mau)
+	productIDs := []string{
+		"BTC-USD",
+		"ETH-USD",
+		"SOL-USD",
+		"XRP-USD",
+		"DOGE-USD",
+		"ADA-USD",
+		"AVAX-USD",
+		"LINK-USD",
+		"MATIC-USD",
+		"LTC-USD",
+		"BCH-USD",
+		"TON-USD",
 	}
-	defer resp.Body.Close()
 
-	// Baca semua body dulu supaya bisa di-debug kalau error
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("binance read body error: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		// Misalnya rate limit: { "code": -1003, "msg": "Too many requests" }
-		return nil, fmt.Errorf("binance HTTP %d: %s", resp.StatusCode, string(body))
-	}
-
-	var arr []struct {
-		Symbol             string `json:"symbol"`
-		LastPrice          string `json:"lastPrice"`
-		PriceChangePercent string `json:"priceChangePercent"`
-	}
-
-	if err := json.Unmarshal(body, &arr); err != nil {
-		// Di sini dulu kamu kena: "cannot unmarshal object into Go value of type []struct..."
-		// Kita tampilkan juga potongan body supaya kelihatan sebenarnya Binance kirim apa
-		return nil, fmt.Errorf("binance decode error: %w | body: %s", err, string(body))
+	type cbStats struct {
+		Open  string `json:"open"`
+		Last  string `json:"last"`
+		High  string `json:"high"`
+		Low   string `json:"low"`
+		Vol   string `json:"volume"`
+		Vol30 string `json:"volume_30day"`
 	}
 
 	var list []models.CexGainer
-	for _, t := range arr {
-		if !strings.HasSuffix(t.Symbol, "USDT") {
+
+	for _, pid := range productIDs {
+		endpoint := "https://api.exchange.coinbase.com/products/" + pid + "/stats"
+
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			// kalau 1 pair error, skip aja, jangan gagal total
 			continue
 		}
-		price, _ := strconv.ParseFloat(t.LastPrice, 64)
-		chg, _ := strconv.ParseFloat(t.PriceChangePercent, 64)
-		list = append(list, models.CexGainer{
-			Exchange:  "binance",
-			Symbol:    t.Symbol,
-			Price:     price,
-			ChangePct: chg,
-		})
+		func() {
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				// skip kalau status bukan 200
+				return
+			}
+
+			var s cbStats
+			if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
+				return
+			}
+
+			open, err1 := strconv.ParseFloat(s.Open, 64)
+			last, err2 := strconv.ParseFloat(s.Last, 64)
+			if err1 != nil || err2 != nil || open <= 0 {
+				return
+			}
+			chg := (last - open) / open * 100.0
+
+			list = append(list, models.CexGainer{
+				Exchange:  "coinbase",
+				Symbol:    pid,
+				Price:     last,
+				ChangePct: chg,
+			})
+		}()
+	}
+
+	if len(list) == 0 {
+		return nil, fmt.Errorf("no coinbase data")
 	}
 
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].ChangePct > list[j].ChangePct
 	})
-
 	if len(list) > limit {
 		list = list[:limit]
 	}
 	return list, nil
 }
 
-// -------- OKX ----------
+//
+// -------- OKX (tetap seperti sebelumnya) ----------
+//
 func (c *Clients) fetchOkxGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
 	endpoint := "https://www.okx.com/api/v5/market/tickers?instType=SPOT"
 
@@ -126,6 +165,7 @@ func (c *Clients) fetchOkxGainers(ctx context.Context, limit int) ([]models.CexG
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, err
 	}
+
 	var list []models.CexGainer
 	for _, t := range data.Data {
 		if !strings.HasSuffix(t.InstID, "-USDT") {
@@ -144,6 +184,7 @@ func (c *Clients) fetchOkxGainers(ctx context.Context, limit int) ([]models.CexG
 			ChangePct: chg,
 		})
 	}
+
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].ChangePct > list[j].ChangePct
 	})
@@ -153,72 +194,55 @@ func (c *Clients) fetchOkxGainers(ctx context.Context, limit int) ([]models.CexG
 	return list, nil
 }
 
-// -------- Bybit ----------
-func (c *Clients) fetchBybitGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
-	endpoint := "https://api.bybit.com/v5/market/tickers?category=spot"
+//
+// -------- MEXC ----------
+//
+// Menggunakan Spot v3 Market Data API:
+//   GET https://api.mexc.com/api/v3/ticker/24hr
+//   - Mengembalikan list semua simbol dengan priceChangePercent & lastPrice. :contentReference[oaicite:2]{index=2}
+//
+func (c *Clients) fetchMexcGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
+	endpoint := "https://api.mexc.com/api/v3/ticker/24hr"
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	// Kadang beberapa API rewel kalau tidak ada User-Agent
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "CryptoSentinelBot/1.0")
-
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("bybit request error: %w", err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("bybit read body error: %w", err)
+	var arr []struct {
+		Symbol             string `json:"symbol"`
+		LastPrice          string `json:"lastPrice"`
+		PriceChangePercent string `json:"priceChangePercent"`
 	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("bybit HTTP %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Kalau body-nya HTML (mulai dengan '<'), langsung kasih tahu
-	if len(body) > 0 && body[0] == '<' {
-		return nil, fmt.Errorf("bybit returned HTML instead of JSON: %.200s", string(body))
-	}
-
-	var data struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			List []struct {
-				Symbol string `json:"symbol"`
-				Last   string `json:"lastPrice"`
-				Prev   string `json:"prevPrice24h"`
-			} `json:"list"`
-		} `json:"result"`
-	}
-
-	if err := json.Unmarshal(body, &data); err != nil {
-		return nil, fmt.Errorf("bybit decode error: %w | body: %.200s", err, string(body))
-	}
-	if data.RetCode != 0 {
-		return nil, fmt.Errorf("bybit API error: %d %s", data.RetCode, data.RetMsg)
+	if err := json.NewDecoder(resp.Body).Decode(&arr); err != nil {
+		return nil, err
 	}
 
 	var list []models.CexGainer
-	for _, t := range data.Result.List {
+	for _, t := range arr {
+		// fokus USDT pairs
 		if !strings.HasSuffix(t.Symbol, "USDT") {
 			continue
 		}
-		last, err1 := strconv.ParseFloat(t.Last, 64)
-		prev, err2 := strconv.ParseFloat(t.Prev, 64)
-		if err1 != nil || err2 != nil || prev <= 0 {
+		price, err1 := strconv.ParseFloat(t.LastPrice, 64)
+		chg, err2 := strconv.ParseFloat(t.PriceChangePercent, 64)
+		if err1 != nil || err2 != nil {
 			continue
 		}
-		chg := (last - prev) / prev * 100
 		list = append(list, models.CexGainer{
-			Exchange:  "bybit",
+			Exchange:  "mexc",
 			Symbol:    t.Symbol,
-			Price:     last,
+			Price:     price,
 			ChangePct: chg,
 		})
 	}
+
+	if len(list) == 0 {
+		return nil, fmt.Errorf("no mexc data")
+	}
+
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].ChangePct > list[j].ChangePct
 	})
@@ -228,7 +252,9 @@ func (c *Clients) fetchBybitGainers(ctx context.Context, limit int) ([]models.Ce
 	return list, nil
 }
 
-// -------- KuCoin ----------
+//
+// -------- KuCoin (tanpa perubahan) ----------
+//
 func (c *Clients) fetchKucoinGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
 	endpoint := "https://api.kucoin.com/api/v1/market/allTickers"
 
@@ -267,6 +293,7 @@ func (c *Clients) fetchKucoinGainers(ctx context.Context, limit int) ([]models.C
 			ChangePct: chgPct,
 		})
 	}
+
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].ChangePct > list[j].ChangePct
 	})
@@ -276,7 +303,9 @@ func (c *Clients) fetchKucoinGainers(ctx context.Context, limit int) ([]models.C
 	return list, nil
 }
 
-// -------- Bitget ----------
+//
+// -------- Bitget (tanpa perubahan) ----------
+//
 func (c *Clients) fetchBitgetGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
 	endpoint := "https://api.bitget.com/api/v2/spot/market/tickers"
 
@@ -321,6 +350,7 @@ func (c *Clients) fetchBitgetGainers(ctx context.Context, limit int) ([]models.C
 			ChangePct: chg,
 		})
 	}
+
 	sort.Slice(list, func(i, j int) bool {
 		return list[i].ChangePct > list[j].ChangePct
 	})
