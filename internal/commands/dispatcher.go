@@ -72,8 +72,6 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 		return CmdDexPrice(ctx, args)
 	case "portfolio":
 		return CmdPortfolio(ctx, args)
-	case "whales":
-		return CmdWhales(ctx, args)
 	case "help":
 		return HelpText(), nil
 	default:
