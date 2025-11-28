@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -19,8 +18,8 @@ type debankPortfolioResponse struct {
 	Data struct {
 		TotalUsdValue float64 `json:"total_usd_value"`
 		ChainList     []struct {
-			ID               string  `json:"id"`
-			Name             string  `json:"name"`
+			ID                string  `json:"id"`
+			Name              string  `json:"name"`
 			PortfolioUsdValue float64 `json:"portfolio_usd_value"`
 		} `json:"chain_list"`
 	} `json:"data"`
@@ -37,7 +36,7 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 
 	apiKey := os.Getenv("DEBANK_API_KEY")
 	if apiKey == "" {
-		return "", errors.New("missing DEBANK_API_KEY in environment")
+		return "Portfolio feature is not configured (missing DEBANK_API_KEY in environment).", nil
 	}
 
 	base := "https://api.debank.com/user/total_balance"
@@ -72,7 +71,7 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "📊 Portfolio summary\nAddress: `%s`\n\n", address)
-	fmt.Fprintf(&b, "Total value: **$%.2f**\n\n", total)
+	fmt.Fprintf(&b, "Total value: $%.2f\n\n", total)
 
 	if len(data.Data.ChainList) > 0 {
 		b.WriteString("Per chain:\n")
@@ -80,7 +79,7 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 			if c.PortfolioUsdValue <= 0 {
 				continue
 			}
-			fmt.Fprintf(&b, "• %s: $%.2f\n", strings.Title(c.Name), c.PortfolioUsdValue)
+			fmt.Fprintf(&b, "• %s: $%.2f\n", titleCase(c.Name), c.PortfolioUsdValue)
 		}
 	}
 
