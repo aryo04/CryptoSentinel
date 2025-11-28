@@ -42,9 +42,10 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 		return CmdTVLChain(ctx, r.clients, args)
 	case "tvlprotocols":
 		return CmdTVLProtocols(ctx, r.clients, args)
-
 	case "top":
 		return CmdTop(ctx, r.clients, args)
+	case "losers":
+		return CmdLosers(ctx, r.clients, args) 
 	case "digest":
 		return CmdDigest(ctx, r.clients, args)
 	case "convert":
@@ -52,7 +53,9 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 	case "gainers_cex":
 		return CmdGainersCEX(ctx, r.clients, args)
 	case "gainers_compare":
-		return CmdGainersCompare(ctx, r.clients, args)
+		return CmdGainersCompare(ctx, r.clients, args)      
+	case "feargreed":
+		return CmdFearGreed(ctx, r.clients, args) 	
 	case "alert":
 		return CmdAlertAdd(r.alerts, args)
 	case "alert_list":
