@@ -93,7 +93,7 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 	if err != nil {
 		// Deteksi timeout dari http.Client (Client.Timeout exceeded)
 		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-			return "⏱️ Portfolio request to Covalent timed out.\nAlamat ini kemungkinan sangat besar atau jaringan sedang lambat. Coba lagi nanti atau gunakan chain lain (misalnya polygon-mainnet, arbitrum-mainnet).", nil
+			return "⏱️ Portfolio request to Covalent timed out.\nThis address is likely very large or the network is slow. Please try again later or use another chain (e.g., polygon-mainnet, arbitrum-mainnet).", nil
 		}
 		return "", fmt.Errorf("portfolio API error: %w", err)
 	}
