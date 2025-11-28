@@ -6,39 +6,42 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
 
 var dexHTTPClient = &http.Client{Timeout: 15 * time.Second}
 
+type dexScreenerPair struct {
+	ChainId string `json:"chainId"`
+	DexId   string `json:"dexId"`
+	URL     string `json:"url"`
+
+	BaseToken struct {
+		Address string `json:"address"`
+		Symbol  string `json:"symbol"`
+		Name    string `json:"name"`
+	} `json:"baseToken"`
+	QuoteToken struct {
+		Address string `json:"address"`
+		Symbol  string `json:"symbol"`
+		Name    string `json:"name"`
+	} `json:"quoteToken"`
+
+	PriceUsd string `json:"priceUsd"`
+
+	Liquidity struct {
+		Usd float64 `json:"usd"`
+	} `json:"liquidity"`
+
+	Volume struct {
+		H24 float64 `json:"h24"`
+	} `json:"volume"`
+}
+
 type dexScreenerResponse struct {
-	Pairs []struct {
-		ChainId string `json:"chainId"`
-		DexId   string `json:"dexId"`
-		URL     string `json:"url"`
-
-		BaseToken struct {
-			Address string `json:"address"`
-			Symbol  string `json:"symbol"`
-			Name    string `json:"name"`
-		} `json:"baseToken"`
-		QuoteToken struct {
-			Address string `json:"address"`
-			Symbol  string `json:"symbol"`
-			Name    string `json:"name"`
-		} `json:"quoteToken"`
-
-		PriceUsd string `json:"priceUsd"`
-
-		Liquidity struct {
-			Usd float64 `json:"usd"`
-		} `json:"liquidity"`
-
-		Volume struct {
-			H24 float64 `json:"h24"`
-		} `json:"volume"`
-	} `json:"pairs"`
+	Pairs []dexScreenerPair `json:"pairs"`
 }
 
 func CmdDexPrice(ctx context.Context, args []string) (string, error) {
@@ -75,25 +78,31 @@ func CmdDexPrice(ctx context.Context, args []string) (string, error) {
 		return fmt.Sprintf("No DEX pairs found for %s on %s", token, chain), nil
 	}
 
-	// Pilih pair yang chain-nya match dulu
-	var best *dexScreenerResponse
-	var pairIndex int
-	for i, p := range data.Pairs {
-		if strings.EqualFold(p.ChainId, chain) || strings.Contains(strings.ToLower(p.ChainId), chain) {
-			best = &data
-			pairIndex = i
+	// Pilih pair yang paling relevan (chain match lebih dulu)
+	var best *dexScreenerPair
+	for i := range data.Pairs {
+		p := &data.Pairs[i]
+		if strings.EqualFold(p.ChainId, chain) ||
+			strings.Contains(strings.ToLower(p.ChainId), chain) {
+			best = p
 			break
 		}
 	}
 	if best == nil {
-		best = &data
-		pairIndex = 0
+		// fallback: gunakan pair pertama
+		best = &data.Pairs[0]
 	}
 
-	p := best.Pairs[pairIndex]
-	price := p.PriceUsd
-	if price == "" {
-		price = "N/A"
+	p := best
+
+	// Format harga: coba parse ke float biar rapi
+	priceStr := "N/A"
+	if p.PriceUsd != "" {
+		if v, err := strconv.ParseFloat(p.PriceUsd, 64); err == nil {
+			priceStr = fmt.Sprintf("%.6f", v)
+		} else {
+			priceStr = p.PriceUsd
+		}
 	}
 
 	out := fmt.Sprintf(
@@ -109,7 +118,7 @@ func CmdDexPrice(ctx context.Context, args []string) (string, error) {
 		p.BaseToken.Symbol,
 		p.QuoteToken.Symbol,
 		p.QuoteToken.Name,
-		price,
+		priceStr,
 		p.Liquidity.Usd,
 		p.Volume.H24,
 		p.DexId,
