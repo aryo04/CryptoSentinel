@@ -34,19 +34,16 @@ var gasChainMap = map[string]string{
 	"celo":      "celo",
 }
 
-// Typed struct untuk 1 speed level
-type owlracleGasSpeed struct {
-	Name       string  `json:"name"`
-	Estimated  float64 `json:"estimatedFee,omitempty"`
-	GasPrice   float64 `json:"gasPrice"`
-	Unit       string  `json:"unit"`
-	Confidence float64 `json:"confidence,omitempty"`
-}
-
-// Response utama Owlracle
+// Struktur Owlracle (pakai anonymous struct seperti sebelumnya)
 type owlracleGasResponse struct {
-	Chain  string             `json:"chain"`
-	Speeds []owlracleGasSpeed `json:"speeds"`
+	Chain  string `json:"chain"`
+	Speeds []struct {
+		Name       string  `json:"name"`
+		Estimated  float64 `json:"estimatedFee,omitempty"`
+		GasPrice   float64 `json:"gasPrice"`
+		Unit       string  `json:"unit"`
+		Confidence float64 `json:"confidence,omitempty"`
+	} `json:"speeds"`
 }
 
 func CmdGas(ctx context.Context, args []string) (string, error) {
@@ -62,7 +59,7 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 
 	apiKey := os.Getenv("OWLRACLE_API_KEY")
 	if apiKey == "" {
-		// Dibikin friendly, bukan error teknis
+		// Dibikin user-friendly, bukan error teknis
 		return "Gas tracker is not configured (missing OWLRACLE_API_KEY in environment).", nil
 	}
 
@@ -92,41 +89,48 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 		return fmt.Sprintf("No gas data for chain %s", raw), nil
 	}
 
-	var slow, normal, fast *owlracleGasSpeed
+	// Pakai index biar nggak ribet tipe struct
+	slowIdx, normalIdx, fastIdx := -1, -1, -1
+
 	for i := range data.Speeds {
-		s := &data.Speeds[i]
+		s := data.Speeds[i]
 		name := strings.ToLower(s.Name)
+
 		switch {
 		case strings.Contains(name, "slow"):
-			if slow == nil {
-				slow = s
+			if slowIdx == -1 {
+				slowIdx = i
 			}
 		case strings.Contains(name, "standard"), strings.Contains(name, "normal"):
-			if normal == nil {
-				normal = s
+			if normalIdx == -1 {
+				normalIdx = i
 			}
 		case strings.Contains(name, "fast"):
-			if fast == nil {
-				fast = s
+			if fastIdx == -1 {
+				fastIdx = i
 			}
 		}
 	}
 
 	// fallback kalau label tidak pas
-	if normal == nil && len(data.Speeds) > 0 {
-		normal = &data.Speeds[0]
+	if normalIdx == -1 && len(data.Speeds) > 0 {
+		normalIdx = 0
 	}
 
 	builder := &strings.Builder{}
 	fmt.Fprintf(builder, "⛽ Gas tracker — %s\n", titleCase(raw))
-	if slow != nil {
-		fmt.Fprintf(builder, "• Slow:   %.2f %s\n", slow.GasPrice, slow.Unit)
+
+	if slowIdx >= 0 {
+		s := data.Speeds[slowIdx]
+		fmt.Fprintf(builder, "• Slow:   %.2f %s\n", s.GasPrice, s.Unit)
 	}
-	if normal != nil {
-		fmt.Fprintf(builder, "• Normal: %.2f %s\n", normal.GasPrice, normal.Unit)
+	if normalIdx >= 0 {
+		s := data.Speeds[normalIdx]
+		fmt.Fprintf(builder, "• Normal: %.2f %s\n", s.GasPrice, s.Unit)
 	}
-	if fast != nil {
-		fmt.Fprintf(builder, "• Fast:   %.2f %s\n", fast.GasPrice, fast.Unit)
+	if fastIdx >= 0 {
+		s := data.Speeds[fastIdx]
+		fmt.Fprintf(builder, "• Fast:   %.2f %s\n", s.GasPrice, s.Unit)
 	}
 
 	builder.WriteString("\nSource: Owlracle Gas API")
