@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"teneo-agent-demo1/internal/clients"
+	"teneo-agent-demo1/internal/services"
 )
 
 // CmdTVLChain menampilkan total TVL per chain dari DefiLlama
@@ -46,11 +47,13 @@ func CmdTVLChain(ctx context.Context, cl *clients.Clients, args []string) (strin
 	target := strings.ToLower(strings.TrimSpace(chain))
 	for _, c := range chains {
 		if strings.EqualFold(c.Name, target) {
-			// TVL di-return sebagai float64, kita tampilkan sebagai angka biasa dengan koma ribuan
+			// TVL dari DefiLlama adalah float, kita bulatkan dan format pakai pemisah ribuan
+			tvlRounded := int64(c.TVL + 0.5)
+
 			return fmt.Sprintf(
-				"Chain TVL — %s\nTVL: $%.0f\nSource: DefiLlama",
+				"Chain TVL — %s\nTVL: $%s\nSource: DefiLlama",
 				c.Name,
-				c.TVL,
+				services.IntComma(tvlRounded),
 			), nil
 		}
 	}
