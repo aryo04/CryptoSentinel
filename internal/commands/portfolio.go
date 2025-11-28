@@ -186,16 +186,18 @@ func parseScaledFloat(balance string, decimals int) (float64, error) {
 	if _, ok := i.SetString(balance, 10); !ok {
 		return 0, fmt.Errorf("invalid balance %q", balance)
 	}
-	if decimals <= 0 {
-		return new(big.Float).SetInt(i).Float64()
-	}
 
 	f := new(big.Float).SetInt(i)
-	denom := new(big.Float).SetFloat64(math.Pow10(decimals))
-	f.Quo(f, denom)
-	out, _ := f.Float64()
+
+	if decimals > 0 {
+		denom := new(big.Float).SetFloat64(math.Pow10(decimals))
+		f.Quo(f, denom)
+	}
+
+	out, _ := f.Float64() // abaikan Accuracy
 	return out, nil
 }
+
 
 // formatUSD: 1234567.89 → "1,234,567.89"
 func formatUSD(v float64) string {
