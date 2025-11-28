@@ -34,9 +34,9 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 		return "Wallet address is required.", nil
 	}
 
-	apiKey := os.Getenv("DEBANK_API_KEY")
+	apiKey := os.Getenv("COVALENT_API_KEY")
 	if apiKey == "" {
-		return "Portfolio feature is not configured (missing DEBANK_API_KEY in environment).", nil
+		return "Portfolio feature is not configured (missing COVALENT_API_KEY in environment).", nil
 	}
 
 	base := "https://api.debank.com/user/total_balance"
