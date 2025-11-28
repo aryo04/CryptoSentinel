@@ -70,7 +70,10 @@ func main() {
 		"top_market",
 		"gainers_cex",
 		"alert_management",
+		"chain_tvl",
+		"protocol_tvl",
 	}
+
 
 	// Set dari environment
 	cfg.PrivateKey = privateKey
