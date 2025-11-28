@@ -23,8 +23,9 @@ type cgStatusResponse struct {
 	} `json:"status_updates"`
 }
 
+// CmdNews menampilkan update terbaru dari CoinGecko (status_updates)
 func CmdNews(ctx context.Context, _ []string) (string, error) {
-	// CoinGecko status updates → "semi-news" tapi lumayan dan tanpa API key
+	// CoinGecko status updates → "semi-news" tanpa API key
 	url := "https://api.coingecko.com/api/v3/status_updates?category=general&per_page=6&page=1"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -52,7 +53,7 @@ func CmdNews(ctx context.Context, _ []string) (string, error) {
 	}
 
 	var b strings.Builder
-	b.WriteString("📰 **Latest crypto market updates (CoinGecko)**\n\n")
+	b.WriteString("📰 Latest crypto market updates (CoinGecko)\n\n")
 
 	max := 5
 	if len(data.StatusUpdates) < max {
@@ -61,15 +62,21 @@ func CmdNews(ctx context.Context, _ []string) (string, error) {
 
 	for i := 0; i < max; i++ {
 		u := data.StatusUpdates[i]
-		t := u.CreatedAt
-		// created_at biasanya ISO string, biar aman tulis apa adanya
+
+		// Format waktu kalau bisa diparse, kalau gagal pakai raw string
+		timeStr := u.CreatedAt
+		if t, err := time.Parse(time.RFC3339, u.CreatedAt); err == nil {
+			// Tampilkan dalam UTC dengan format ringkas
+			timeStr = t.UTC().Format("2006-01-02 15:04 MST")
+		}
+
 		line := fmt.Sprintf(
 			"%d) [%s / %s]\n   %s\n   Time: %s\n\n",
 			i+1,
 			u.Project.Name,
 			strings.ToUpper(u.Project.Symbol),
 			strings.TrimSpace(u.Description),
-			t,
+			timeStr,
 		)
 		b.WriteString(line)
 	}
