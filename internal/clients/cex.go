@@ -51,22 +51,35 @@ func (c *Clients) fetchBinanceGainers(ctx context.Context, limit int) ([]models.
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("binance request error: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// Baca semua body dulu supaya bisa di-debug kalau error
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("binance read body error: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		// Misalnya rate limit: { "code": -1003, "msg": "Too many requests" }
+		return nil, fmt.Errorf("binance HTTP %d: %s", resp.StatusCode, string(body))
+	}
 
 	var arr []struct {
 		Symbol             string `json:"symbol"`
 		LastPrice          string `json:"lastPrice"`
 		PriceChangePercent string `json:"priceChangePercent"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&arr); err != nil {
-		return nil, err
+
+	if err := json.Unmarshal(body, &arr); err != nil {
+		// Di sini dulu kamu kena: "cannot unmarshal object into Go value of type []struct..."
+		// Kita tampilkan juga potongan body supaya kelihatan sebenarnya Binance kirim apa
+		return nil, fmt.Errorf("binance decode error: %w | body: %s", err, string(body))
 	}
 
 	var list []models.CexGainer
 	for _, t := range arr {
-		// fokus USDT pairs
 		if !strings.HasSuffix(t.Symbol, "USDT") {
 			continue
 		}
@@ -144,25 +157,47 @@ func (c *Clients) fetchBybitGainers(ctx context.Context, limit int) ([]models.Ce
 	endpoint := "https://api.bybit.com/v5/market/tickers?category=spot"
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	// Kadang beberapa API rewel kalau tidak ada User-Agent
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "CryptoSentinelBot/1.0")
+
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("bybit request error: %w", err)
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("bybit read body error: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("bybit HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Kalau body-nya HTML (mulai dengan '<'), langsung kasih tahu
+	if len(body) > 0 && body[0] == '<' {
+		return nil, fmt.Errorf("bybit returned HTML instead of JSON: %.200s", string(body))
+	}
+
 	var data struct {
-		Result struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
 			List []struct {
 				Symbol string `json:"symbol"`
 				Last   string `json:"lastPrice"`
-				High   string `json:"highPrice24h"`
-				Low    string `json:"lowPrice24h"`
 				Prev   string `json:"prevPrice24h"`
 			} `json:"list"`
 		} `json:"result"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
+
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("bybit decode error: %w | body: %.200s", err, string(body))
+	}
+	if data.RetCode != 0 {
+		return nil, fmt.Errorf("bybit API error: %d %s", data.RetCode, data.RetMsg)
 	}
 
 	var list []models.CexGainer
