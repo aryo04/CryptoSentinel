@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"teneo-agent-demo1/internal/clients"
+	"teneo-agent-demo1/internal/services"
 )
 
 // CmdTVLProtocols menampilkan top protokol DeFi berdasarkan TVL pada sebuah chain
@@ -46,13 +47,13 @@ func CmdTVLProtocols(ctx context.Context, cl *clients.Clients, args []string) (s
 	}
 
 	target := strings.ToLower(strings.TrimSpace(chain))
+
 	type protoInfo struct {
 		Name string
 		TVL  float64
 	}
 
 	var filtered []protoInfo
-
 	for _, p := range protos {
 		for _, ch := range p.Chains {
 			if strings.EqualFold(ch, target) {
@@ -69,6 +70,7 @@ func CmdTVLProtocols(ctx context.Context, cl *clients.Clients, args []string) (s
 		return fmt.Sprintf("No protocols found for chain '%s'.", chain), nil
 	}
 
+	// Urutkan dari TVL terbesar ke terkecil
 	sort.Slice(filtered, func(i, j int) bool {
 		return filtered[i].TVL > filtered[j].TVL
 	})
@@ -80,16 +82,19 @@ func CmdTVLProtocols(ctx context.Context, cl *clients.Clients, args []string) (s
 
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("Top %d protocols by TVL on %s:\n", limit, chain))
+
 	for i := 0; i < limit; i++ {
 		p := filtered[i]
+		tvlRounded := int64(p.TVL + 0.5)
+
 		b.WriteString(fmt.Sprintf(
-			"%d) %s — TVL: $%.0f\n",
+			"%d) %s — TVL: $%s\n",
 			i+1,
 			p.Name,
-			p.TVL,
+			services.IntComma(tvlRounded),
 		))
 	}
-	b.WriteString("\nSource: DefiLlama")
 
+	b.WriteString("\nSource: DefiLlama")
 	return b.String(), nil
 }
