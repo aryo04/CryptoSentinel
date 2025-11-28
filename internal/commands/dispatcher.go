@@ -50,8 +50,8 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 	// Market lists
 	case "top":
 		return CmdTop(ctx, r.clients, args)
-	// case "gainers":
-	// 	return CmdGainers(ctx, r.clients, args)
+	case "gainers":
+		return CmdGainers(ctx, r.clients, args)
 	case "losers":
 		return CmdLosers(ctx, r.clients, args)
 
