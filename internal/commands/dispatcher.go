@@ -30,32 +30,58 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 	args := parts[1:]
 
 	switch cmd {
+
+	// Core market data
 	case "price":
 		return CmdPrice(ctx, r.clients, args)
 	case "compare":
 		return CmdCompare(ctx, r.clients, args)
+	case "digest":
+		return CmdDigest(ctx, r.clients, args)
+
+	// DeFi TVL
 	case "tvl":
 		return CmdTVL(ctx, r.clients, args)
-
-	// 🔥 Baru ditambahkan:
 	case "tvlchain":
 		return CmdTVLChain(ctx, r.clients, args)
 	case "tvlprotocols":
 		return CmdTVLProtocols(ctx, r.clients, args)
+
+	// Market lists
 	case "top":
 		return CmdTop(ctx, r.clients, args)
+	case "gainers":
+		return CmdGainers(ctx, r.clients, args)
 	case "losers":
-		return CmdLosers(ctx, r.clients, args) 
-	case "digest":
-		return CmdDigest(ctx, r.clients, args)
+		return CmdLosers(ctx, r.clients, args)
+
+	// Sentiment
+	case "feargreed":
+		return CmdFearGreed(ctx, r.clients, args)
+
+	// Conversions
 	case "convert":
 		return CmdConvert(ctx, r.clients, args)
+
+	// CEX gainers
 	case "gainers_cex":
 		return CmdGainersCEX(ctx, r.clients, args)
 	case "gainers_compare":
-		return CmdGainersCompare(ctx, r.clients, args)      
-	case "feargreed":
-		return CmdFearGreed(ctx, r.clients, args) 	
+		return CmdGainersCompare(ctx, r.clients, args)
+
+	// Gas tracker (Owlracle)
+	case "gas":
+		return CmdGas(ctx, args)
+
+	// DEX price (Dexscreener)
+	case "dexprice":
+		return CmdDexPrice(ctx, args)
+
+	// Portfolio (DeBank)
+	case "portfolio":
+		return CmdPortfolio(ctx, args)
+
+	// Alerts
 	case "alert":
 		return CmdAlertAdd(r.alerts, args)
 	case "alert_list":
@@ -64,16 +90,15 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 		return CmdAlertRemove(r.alerts, args)
 	case "alert_clear":
 		return CmdAlertClear(r.alerts)
+
+	// News / updates
 	case "news":
 		return CmdNews(ctx, args)
-	case "gas":
-		return CmdGas(ctx, args)
-	case "dexprice":
-		return CmdDexPrice(ctx, args)
-	case "portfolio":
-		return CmdPortfolio(ctx, args)
+
+	// Help
 	case "help":
 		return HelpText(), nil
+
 	default:
 		return "Unknown command. Type: help", nil
 	}
