@@ -23,32 +23,34 @@ type cgStatusResponse struct {
 	} `json:"status_updates"`
 }
 
-// CmdNews mengambil “status updates” dari CoinGecko sebagai pseudo-news.
-// Tidak pakai API key, tapi endpoint kadang berubah / rate-limited.
+// CmdNews mengambil "status_updates" dari CoinGecko.
+// Kalau API lagi 404 / error, kita balas pesan ramah ke user, bukan error mentah.
 func CmdNews(ctx context.Context, _ []string) (string, error) {
-	// Versi tanpa filter category supaya lebih kompatibel
-	url := "https://api.coingecko.com/api/v3/status_updates?per_page=6&page=1"
+	url := "https://api.coingecko.com/api/v3/status_updates?category=general&per_page=6&page=1"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "❌ Failed to build news request.", nil
+		// Ini betul-betul error internal (jarang terjadi)
+		return "", err
 	}
 	req.Header.Set("User-Agent", "CryptoSentinelAI/1.0")
 
 	resp, err := newsHTTPClient.Do(req)
 	if err != nil {
-		return fmt.Sprintf("❌ Failed to fetch news: %v", err), nil
+		return "⚠️ Failed to reach news provider. Please try again later.", nil
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound {
+		return "❌ News feed is currently unavailable (status 404). Please try again later.", nil
+	}
 	if resp.StatusCode != http.StatusOK {
-		// Jangan lempar error ke SDK, cukup tampilkan ke user
-		return fmt.Sprintf("❌ News feed is currently unavailable (status %d). Please try again later.", resp.StatusCode), nil
+		return fmt.Sprintf("⚠️ News service returned status %d. Please try again later.", resp.StatusCode), nil
 	}
 
 	var data cgStatusResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return fmt.Sprintf("❌ Failed to decode news response: %v", err), nil
+		return "⚠️ Failed to decode news response from provider.", nil
 	}
 	if len(data.StatusUpdates) == 0 {
 		return "No fresh updates from CoinGecko right now.", nil
@@ -64,13 +66,17 @@ func CmdNews(ctx context.Context, _ []string) (string, error) {
 
 	for i := 0; i < max; i++ {
 		u := data.StatusUpdates[i]
+		desc := strings.TrimSpace(u.Description)
+		if desc == "" {
+			desc = "(no description)"
+		}
 		line := fmt.Sprintf(
 			"%d) [%s / %s]\n   %s\n   Time: %s\n\n",
 			i+1,
 			u.Project.Name,
 			strings.ToUpper(u.Project.Symbol),
-			strings.TrimSpace(u.Description),
-			u.CreatedAt, // biasanya ISO string
+			desc,
+			u.CreatedAt,
 		)
 		b.WriteString(line)
 	}
