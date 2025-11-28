@@ -8,8 +8,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
+
+	"teneo-agent-demo1/internal/services"
 )
 
 var portfolioHTTP = &http.Client{Timeout: 45 * time.Second}
@@ -31,16 +34,26 @@ var supportedPortfolioChains = map[string]string{
 	"avalanche": "avalanche-mainnet",
 }
 
-// Struktur response data utama dari Covalent portfolio_v2
-type portfolioV2Response struct {
-	Address       string `json:"address"`
-	UpdatedAt     string `json:"updated_at"`
-	QuoteCurrency string `json:"quote_currency"`
-	ChainName     string `json:"chain_name"`
-	Items         []struct {
-		Date       string  `json:"date"`
-		TotalValue float64 `json:"total_value"`
-	} `json:"items"`
+// Struktur response Covalent portfolio_v2 (disederhanakan)
+type covalentPortfolioResponse struct {
+	Data struct {
+		Address       string `json:"address"`
+		UpdatedAt     string `json:"updated_at"`
+		QuoteCurrency string `json:"quote_currency"`
+		ChainName     string `json:"chain_name"`
+		Items         []struct {
+			ContractName         string `json:"contract_name"`
+			ContractTickerSymbol string `json:"contract_ticker_symbol"`
+			// holdings berisi history per hari
+			Holdings []struct {
+				Timestamp string  `json:"timestamp"`
+				Quote     float64 `json:"quote"` // beberapa chain langsung punya field ini
+				Close     struct {
+					Quote float64 `json:"quote"` // di chain lain, quote ada di dalam close.quote
+				} `json:"close"`
+			} `json:"holdings"`
+		} `json:"items"`
+	} `json:"data"`
 }
 
 // CmdPortfolio
@@ -75,14 +88,14 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 		return "", fmt.Errorf("missing COVALENT_API_KEY in environment")
 	}
 
-	// Batasi ke 14 hari terakhir & quote USD, biar response tidak terlalu berat
-	baseURL := fmt.Sprintf(
+	// Ambil 14 hari terakhir, quote USD
+	endpoint := fmt.Sprintf(
 		"https://api.covalenthq.com/v1/%s/address/%s/portfolio_v2/?days=14&quote-currency=USD",
 		chainInput,
 		url.PathEscape(address),
 	)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return "", err
 	}
@@ -91,9 +104,9 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 
 	resp, err := portfolioHTTP.Do(req)
 	if err != nil {
-		// Deteksi timeout dari http.Client (Client.Timeout exceeded)
+		// Deteksi timeout
 		if nerr, ok := err.(net.Error); ok && nerr.Timeout() {
-			return "⏱️ Portfolio request to Covalent timed out.\nThis address is likely very large or the network is slow. Please try again later or use another chain (e.g., polygon-mainnet, arbitrum-mainnet).", nil
+			return "⏱️ Covalent portfolio_v2 request timed out. Jaringan sedang lambat atau alamat punya data sangat besar. Coba lagi beberapa saat lagi.", nil
 		}
 		return "", fmt.Errorf("portfolio API error: %w", err)
 	}
@@ -102,14 +115,11 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 	if resp.StatusCode == http.StatusForbidden {
 		return "🚫 Covalent returned 403 for portfolio_v2.\nPeriksa: API key, plan, atau batasan penggunaan di dashboard Covalent.", nil
 	}
-
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("Covalent status %d", resp.StatusCode)
 	}
 
-	var body struct {
-		Data portfolioV2Response `json:"data"`
-	}
+	var body covalentPortfolioResponse
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return "", fmt.Errorf("decode portfolio JSON error: %w", err)
 	}
@@ -119,26 +129,86 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 		return fmt.Sprintf("No portfolio data found for address %s on %s.", address, chainInput), nil
 	}
 
-	var b strings.Builder
-	b.WriteString("📊 **Portfolio value history**\n")
-	b.WriteString(fmt.Sprintf("Address: `%s`\nChain: **%s**\nQuote: **%s**\n\n",
-		address,
-		body.Data.ChainName,
-		body.Data.QuoteCurrency,
-	))
-
-	// Ambil max 10 hari terakhir, dari yang terbaru ke yang lebih lama
-	limit := 10
-	if len(items) < limit {
-		limit = len(items)
+	// Hitung total dan ringkasan per token berdasarkan holding terakhir
+	type tokenSummary struct {
+		Name   string
+		Symbol string
+		Value  float64
 	}
 
-	b.WriteString("**Last 10 days (most recent first):**\n")
+	var (
+		total   float64
+		tokens  []tokenSummary
+		nonZero int
+	)
 
-	start := len(items) - limit
-	for i := len(items) - 1; i >= start; i-- {
-		d := items[i]
-		b.WriteString(fmt.Sprintf("• %s → $%.2f\n", d.Date, d.TotalValue))
+	for _, it := range items {
+		if len(it.Holdings) == 0 {
+			continue
+		}
+		last := it.Holdings[len(it.Holdings)-1]
+
+		q := last.Quote
+		if q == 0 && last.Close.Quote != 0 {
+			q = last.Close.Quote
+		}
+		if q <= 0 {
+			continue
+		}
+
+		nonZero++
+		total += q
+		tokens = append(tokens, tokenSummary{
+			Name:   it.ContractName,
+			Symbol: it.ContractTickerSymbol,
+			Value:  q,
+		})
+	}
+
+	if nonZero == 0 {
+		return fmt.Sprintf(
+			"Portfolio appears empty or Covalent returned 0 USD value for address %s on %s.\nIni bisa terjadi kalau hanya ada token kecil / illiquid yang tidak punya harga fiat di Covalent.",
+			address, chainInput,
+		), nil
+	}
+
+	// Urutkan token dari yang paling besar
+	sort.Slice(tokens, func(i, j int) bool {
+		return tokens[i].Value > tokens[j].Value
+	})
+
+	// Batasi top N token
+	topN := 10
+	if len(tokens) < topN {
+		topN = len(tokens)
+	}
+
+	var b strings.Builder
+	b.WriteString("📊 **Portfolio snapshot**\n")
+	b.WriteString(fmt.Sprintf("Address: `%s`\n", address))
+	b.WriteString(fmt.Sprintf("Chain: **%s**\n", body.Data.ChainName))
+	b.WriteString(fmt.Sprintf("Quote: **%s**\n", body.Data.QuoteCurrency))
+	if body.Data.UpdatedAt != "" {
+		b.WriteString(fmt.Sprintf("Updated: %s\n", body.Data.UpdatedAt))
+	}
+	b.WriteString("\n")
+
+	b.WriteString(fmt.Sprintf("Total value (approx): **$%s**\n\n", services.F(total)))
+
+	b.WriteString(fmt.Sprintf("Top %d tokens by value:\n", topN))
+	for i := 0; i < topN; i++ {
+		t := tokens[i]
+		name := t.Name
+		if name == "" {
+			name = strings.ToUpper(t.Symbol)
+		}
+		b.WriteString(fmt.Sprintf(
+			"%d) %s (%s) — $%s\n",
+			i+1,
+			name,
+			strings.ToUpper(t.Symbol),
+			services.F(t.Value),
+		))
 	}
 
 	b.WriteString("\nSource: Covalent Portfolio v2 API")
