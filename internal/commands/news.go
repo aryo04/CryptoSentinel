@@ -23,30 +23,32 @@ type cgStatusResponse struct {
 	} `json:"status_updates"`
 }
 
-// CmdNews menampilkan update terbaru dari CoinGecko (status_updates)
+// CmdNews mengambil “status updates” dari CoinGecko sebagai pseudo-news.
+// Tidak pakai API key, tapi endpoint kadang berubah / rate-limited.
 func CmdNews(ctx context.Context, _ []string) (string, error) {
-	// CoinGecko status updates → "semi-news" tanpa API key
-	url := "https://api.coingecko.com/api/v3/status_updates?category=general&per_page=6&page=1"
+	// Versi tanpa filter category supaya lebih kompatibel
+	url := "https://api.coingecko.com/api/v3/status_updates?per_page=6&page=1"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", err
+		return "❌ Failed to build news request.", nil
 	}
 	req.Header.Set("User-Agent", "CryptoSentinelAI/1.0")
 
 	resp, err := newsHTTPClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch news: %w", err)
+		return fmt.Sprintf("❌ Failed to fetch news: %v", err), nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("news provider status: %d", resp.StatusCode)
+		// Jangan lempar error ke SDK, cukup tampilkan ke user
+		return fmt.Sprintf("❌ News feed is currently unavailable (status %d). Please try again later.", resp.StatusCode), nil
 	}
 
 	var data cgStatusResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return "", fmt.Errorf("decode news error: %w", err)
+		return fmt.Sprintf("❌ Failed to decode news response: %v", err), nil
 	}
 	if len(data.StatusUpdates) == 0 {
 		return "No fresh updates from CoinGecko right now.", nil
@@ -62,21 +64,13 @@ func CmdNews(ctx context.Context, _ []string) (string, error) {
 
 	for i := 0; i < max; i++ {
 		u := data.StatusUpdates[i]
-
-		// Format waktu kalau bisa diparse, kalau gagal pakai raw string
-		timeStr := u.CreatedAt
-		if t, err := time.Parse(time.RFC3339, u.CreatedAt); err == nil {
-			// Tampilkan dalam UTC dengan format ringkas
-			timeStr = t.UTC().Format("2006-01-02 15:04 MST")
-		}
-
 		line := fmt.Sprintf(
 			"%d) [%s / %s]\n   %s\n   Time: %s\n\n",
 			i+1,
 			u.Project.Name,
 			strings.ToUpper(u.Project.Symbol),
 			strings.TrimSpace(u.Description),
-			timeStr,
+			u.CreatedAt, // biasanya ISO string
 		)
 		b.WriteString(line)
 	}
