@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -35,16 +34,19 @@ var gasChainMap = map[string]string{
 	"celo":      "celo",
 }
 
-// Struktur Owlracle (disederhanakan, field utama saja)
+// Typed struct untuk 1 speed level
+type owlracleGasSpeed struct {
+	Name       string  `json:"name"`
+	Estimated  float64 `json:"estimatedFee,omitempty"`
+	GasPrice   float64 `json:"gasPrice"`
+	Unit       string  `json:"unit"`
+	Confidence float64 `json:"confidence,omitempty"`
+}
+
+// Response utama Owlracle
 type owlracleGasResponse struct {
-	Chain  string `json:"chain"`
-	Speeds []struct {
-		Name      string   `json:"name"`
-		Estimated float64  `json:"estimatedFee,omitempty"`
-		GasPrice  float64  `json:"gasPrice"`
-		Unit      string   `json:"unit"`
-		Confidence float64 `json:"confidence,omitempty"`
-	} `json:"speeds"`
+	Chain  string             `json:"chain"`
+	Speeds []owlracleGasSpeed `json:"speeds"`
 }
 
 func CmdGas(ctx context.Context, args []string) (string, error) {
@@ -60,7 +62,8 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 
 	apiKey := os.Getenv("OWLRACLE_API_KEY")
 	if apiKey == "" {
-		return "", errors.New("missing OWLRACLE_API_KEY in environment")
+		// Dibikin friendly, bukan error teknis
+		return "Gas tracker is not configured (missing OWLRACLE_API_KEY in environment).", nil
 	}
 
 	url := fmt.Sprintf("https://api.owlracle.info/v4/%s/gas?apikey=%s", chainID, apiKey)
@@ -89,13 +92,7 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 		return fmt.Sprintf("No gas data for chain %s", raw), nil
 	}
 
-	var slow, normal, fast *struct {
-		Name      string
-		Estimated float64
-		GasPrice  float64
-		Unit      string
-		Confidence float64
-	}
+	var slow, normal, fast *owlracleGasSpeed
 	for i := range data.Speeds {
 		s := &data.Speeds[i]
 		name := strings.ToLower(s.Name)
@@ -121,17 +118,28 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 	}
 
 	builder := &strings.Builder{}
-	fmt.Fprintf(builder, "⛽ **Gas tracker — %s**\n", strings.Title(raw))
+	fmt.Fprintf(builder, "⛽ Gas tracker — %s\n", titleCase(raw))
 	if slow != nil {
-		fmt.Fprintf(builder, "• Slow:    %.2f %s\n", slow.GasPrice, slow.Unit)
+		fmt.Fprintf(builder, "• Slow:   %.2f %s\n", slow.GasPrice, slow.Unit)
 	}
 	if normal != nil {
-		fmt.Fprintf(builder, "• Normal:  %.2f %s\n", normal.GasPrice, normal.Unit)
+		fmt.Fprintf(builder, "• Normal: %.2f %s\n", normal.GasPrice, normal.Unit)
 	}
 	if fast != nil {
-		fmt.Fprintf(builder, "• Fast:    %.2f %s\n", fast.GasPrice, fast.Unit)
+		fmt.Fprintf(builder, "• Fast:   %.2f %s\n", fast.GasPrice, fast.Unit)
 	}
 
 	builder.WriteString("\nSource: Owlracle Gas API")
 	return builder.String(), nil
+}
+
+// titleCase pengganti strings.Title (deprecated)
+func titleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	if len(s) == 1 {
+		return strings.ToUpper(s)
+	}
+	return strings.ToUpper(s[:1]) + strings.ToLower(s[1:])
 }
