@@ -34,16 +34,18 @@ var gasChainMap = map[string]string{
 	"celo":      "celo",
 }
 
-// Struktur Owlracle (pakai anonymous struct seperti sebelumnya)
+type owlracleSpeed struct {
+	Name       string  `json:"name"`
+	Estimated  float64 `json:"estimatedFee,omitempty"`
+	GasPrice   float64 `json:"gasPrice"`
+	Unit       string  `json:"unit"`
+	Confidence float64 `json:"confidence,omitempty"`
+}
+
+// Struktur Owlracle (disederhanakan)
 type owlracleGasResponse struct {
-	Chain  string `json:"chain"`
-	Speeds []struct {
-		Name       string  `json:"name"`
-		Estimated  float64 `json:"estimatedFee,omitempty"`
-		GasPrice   float64 `json:"gasPrice"`
-		Unit       string  `json:"unit"`
-		Confidence float64 `json:"confidence,omitempty"`
-	} `json:"speeds"`
+	Chain  string          `json:"chain"`
+	Speeds []owlracleSpeed `json:"speeds"`
 }
 
 func CmdGas(ctx context.Context, args []string) (string, error) {
@@ -59,91 +61,77 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 
 	apiKey := os.Getenv("OWLRACLE_API_KEY")
 	if apiKey == "" {
-		// Dibikin user-friendly, bukan error teknis
-		return "Gas tracker is not configured (missing OWLRACLE_API_KEY in environment).", nil
+		// Jangan return error ke SDK, jelaskan saja
+		return "Gas tracker is not configured yet (missing OWLRACLE_API_KEY on the server). Ask the operator to add it if you need this feature.", nil
 	}
 
 	url := fmt.Sprintf("https://api.owlracle.info/v4/%s/gas?apikey=%s", chainID, apiKey)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", err
+		return "❌ Failed to build gas request.", nil
 	}
 	req.Header.Set("User-Agent", "CryptoSentinelAI/1.0")
 
 	resp, err := gasHTTPClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("gas API error: %w", err)
+		return fmt.Sprintf("❌ Gas API error: %v", err), nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("gas API status %d for chain %s", resp.StatusCode, chainID)
+		return fmt.Sprintf("❌ Gas API returned status %d for chain %s. Please try again later.", resp.StatusCode, strings.Title(raw)), nil
 	}
 
 	var data owlracleGasResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return "", fmt.Errorf("decode gas JSON error: %w", err)
+		return fmt.Sprintf("❌ Failed to decode gas data: %v", err), nil
 	}
 	if len(data.Speeds) == 0 {
-		return fmt.Sprintf("No gas data for chain %s", raw), nil
+		return fmt.Sprintf("No gas data available for chain %s.", raw), nil
 	}
 
-	// Pakai index biar nggak ribet tipe struct
-	slowIdx, normalIdx, fastIdx := -1, -1, -1
+	var slow, normal, fast *owlracleSpeed
 
 	for i := range data.Speeds {
-		s := data.Speeds[i]
+		s := &data.Speeds[i]
 		name := strings.ToLower(s.Name)
 
 		switch {
 		case strings.Contains(name, "slow"):
-			if slowIdx == -1 {
-				slowIdx = i
+			if slow == nil {
+				slow = s
 			}
-		case strings.Contains(name, "standard"), strings.Contains(name, "normal"):
-			if normalIdx == -1 {
-				normalIdx = i
+		case strings.Contains(name, "standard") || strings.Contains(name, "normal"):
+			if normal == nil {
+				normal = s
 			}
 		case strings.Contains(name, "fast"):
-			if fastIdx == -1 {
-				fastIdx = i
+			if fast == nil {
+				fast = s
 			}
 		}
 	}
 
 	// fallback kalau label tidak pas
-	if normalIdx == -1 && len(data.Speeds) > 0 {
-		normalIdx = 0
+	if normal == nil {
+		normal = &data.Speeds[0]
 	}
 
-	builder := &strings.Builder{}
-	fmt.Fprintf(builder, "⛽ Gas tracker — %s\n", titleCase(raw))
+	b := &strings.Builder{}
+	fmt.Fprintf(b, "⛽ Gas tracker — %s\n", strings.Title(raw))
 
-	if slowIdx >= 0 {
-		s := data.Speeds[slowIdx]
-		fmt.Fprintf(builder, "• Slow:   %.2f %s\n", s.GasPrice, s.Unit)
+	// catatan: Owlracle biasanya mengembalikan Gwei
+	if slow != nil {
+		fmt.Fprintf(b, "• Slow:   %.2f %s\n", slow.GasPrice, slow.Unit)
 	}
-	if normalIdx >= 0 {
-		s := data.Speeds[normalIdx]
-		fmt.Fprintf(builder, "• Normal: %.2f %s\n", s.GasPrice, s.Unit)
+	if normal != nil {
+		fmt.Fprintf(b, "• Normal: %.2f %s\n", normal.GasPrice, normal.Unit)
 	}
-	if fastIdx >= 0 {
-		s := data.Speeds[fastIdx]
-		fmt.Fprintf(builder, "• Fast:   %.2f %s\n", s.GasPrice, s.Unit)
+	if fast != nil {
+		fmt.Fprintf(b, "• Fast:   %.2f %s\n", fast.GasPrice, fast.Unit)
 	}
 
-	builder.WriteString("\nSource: Owlracle Gas API")
-	return builder.String(), nil
-}
-
-// titleCase pengganti strings.Title (deprecated)
-func titleCase(s string) string {
-	if s == "" {
-		return s
-	}
-	if len(s) == 1 {
-		return strings.ToUpper(s)
-	}
-	return strings.ToUpper(s[:1]) + strings.ToLower(s[1:])
+	b.WriteString("\nSource: Owlracle Gas API")
+	return b.String(), nil
 }
