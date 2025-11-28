@@ -37,16 +37,17 @@ convert [amount] [from] [to]
     convert 250 usdt sol
 
 gainers_cex [limit]
-  Show top gainers on major CEX (Binance, OKX, Bybit, KuCoin, Bitget).
+  Show top gainers on major CEX (Coinbase, OKX, MEXC, KuCoin, Bitget).
   Examples:
     gainers_cex
     gainers_cex 10
 
 gainers_compare [limit] [cex1] [cex2]
-  Compare top gainers between two CEX.
+  Compare top gainers between two supported CEX.
+  Supported CEX: coinbase, okx, mexc, kucoin, bitget
   Examples:
-    gainers_compare 5 binance okx
-    gainers_compare 3 bybit kucoin
+    gainers_compare 5 coinbase okx
+    gainers_compare 3 mexc kucoin
 
 alert [symbol] [condition]
   Create price alert with operator >, <, >=, <=.
