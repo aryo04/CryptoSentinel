@@ -34,9 +34,9 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 		return "Wallet address is required.", nil
 	}
 
-	apiKey := os.Getenv("COVALENT_API_KEY")
+	apiKey := os.Getenv("DEBANK_API_KEY")
 	if apiKey == "" {
-		return "Portfolio feature is not configured (missing COVALENT_API_KEY in environment).", nil
+		return "Portfolio feature is not configured yet (missing DEBANK_API_KEY on the server). Ask the operator to add it if you want this feature.", nil
 	}
 
 	base := "https://api.debank.com/user/total_balance"
@@ -44,29 +44,29 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return "", err
+		return "❌ Failed to build DeBank request.", nil
 	}
 	req.Header.Set("User-Agent", "CryptoSentinelAI/1.0")
 	req.Header.Set("AccessKey", apiKey)
 
 	resp, err := portfolioHTTPClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("debank error: %w", err)
+		return fmt.Sprintf("❌ DeBank API error: %v", err), nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("debank status %d (check API key & IP allowlist)", resp.StatusCode)
+		return fmt.Sprintf("❌ DeBank returned status %d (check API key, address, or IP allowlist).", resp.StatusCode), nil
 	}
 
 	var data debankPortfolioResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return "", fmt.Errorf("decode debank error: %w", err)
+		return fmt.Sprintf("❌ Failed to decode DeBank response: %v", err), nil
 	}
 
 	total := data.Data.TotalUsdValue
 	if total == 0 && len(data.Data.ChainList) == 0 {
-		return fmt.Sprintf("No portfolio data found for address %s", address), nil
+		return fmt.Sprintf("No portfolio data found for address %s.", address), nil
 	}
 
 	var b strings.Builder
@@ -79,7 +79,7 @@ func CmdPortfolio(ctx context.Context, args []string) (string, error) {
 			if c.PortfolioUsdValue <= 0 {
 				continue
 			}
-			fmt.Fprintf(&b, "• %s: $%.2f\n", titleCase(c.Name), c.PortfolioUsdValue)
+			fmt.Fprintf(&b, "• %s: $%.2f\n", strings.Title(c.Name), c.PortfolioUsdValue)
 		}
 	}
 
