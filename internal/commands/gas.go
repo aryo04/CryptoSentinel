@@ -64,16 +64,19 @@ var gasEmoji = map[string]string{
 	"celo":     "🟨",
 }
 
-// Struktur respons Owlracle (disederhanakan)
+// Named type untuk 1 speed Owlracle
+type owlSpeed struct {
+	Name       string  `json:"name"`
+	Estimated  float64 `json:"estimatedFee,omitempty"`
+	GasPrice   float64 `json:"gasPrice"`
+	Unit       string  `json:"unit"`
+	Confidence float64 `json:"confidence,omitempty"`
+}
+
+// Struktur respons Owlracle
 type owlracleGasResponse struct {
-	Chain  string `json:"chain"`
-	Speeds []struct {
-		Name       string  `json:"name"`
-		Estimated  float64 `json:"estimatedFee,omitempty"` // biasanya dalam USD (default feeinusd=true)
-		GasPrice   float64 `json:"gasPrice"`              // kadang 0 kalau pakai feeinusd
-		Unit       string  `json:"unit"`
-		Confidence float64 `json:"confidence,omitempty"`
-	} `json:"speeds"`
+	Chain  string     `json:"chain"`
+	Speeds []owlSpeed `json:"speeds"`
 }
 
 // CmdGas: gas [chain]
@@ -94,7 +97,6 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 		return "", errors.New("missing OWLRACLE_API_KEY in environment")
 	}
 
-	// basic URL, pakai default param Owlracle
 	url := fmt.Sprintf("https://api.owlracle.info/v4/%s/gas?apikey=%s", chainID, apiKey)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -110,7 +112,6 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		// jangan lempar error ke luar, tapi kirimkan pesan ke user
 		return fmt.Sprintf("⚠️ Gas API status %d for chain %s", resp.StatusCode, chainID), nil
 	}
 
@@ -122,26 +123,25 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 		return fmt.Sprintf("No gas data for chain %s", raw), nil
 	}
 
-	// Cari indeks slow / normal / fast (pakai index, bukan pointer ke anonymous type)
+	// Cari indeks slow / normal / fast
 	slowIdx, normalIdx, fastIdx := -1, -1, -1
-
 	for i := range data.Speeds {
 		s := &data.Speeds[i]
 		name := strings.ToLower(s.Name)
 
 		switch {
-			case strings.Contains(name, "slow"):
-				if slowIdx == -1 {
-					slowIdx = i
-				}
-			case strings.Contains(name, "standard"), strings.Contains(name, "normal"):
-				if normalIdx == -1 {
-					normalIdx = i
-				}
-			case strings.Contains(name, "fast"):
-				if fastIdx == -1 {
-					fastIdx = i
-				}
+		case strings.Contains(name, "slow"):
+			if slowIdx == -1 {
+				slowIdx = i
+			}
+		case strings.Contains(name, "standard"), strings.Contains(name, "normal"):
+			if normalIdx == -1 {
+				normalIdx = i
+			}
+		case strings.Contains(name, "fast"):
+			if fastIdx == -1 {
+				fastIdx = i
+			}
 		}
 	}
 
@@ -162,13 +162,7 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s Gas tracker — %s\n", flag, prettyName)
 
-	writeLine := func(label string, s *struct {
-		Name       string
-		Estimated  float64
-		GasPrice   float64
-		Unit       string
-		Confidence float64
-	}) {
+	writeLine := func(label string, s *owlSpeed) {
 		if s == nil {
 			return
 		}
