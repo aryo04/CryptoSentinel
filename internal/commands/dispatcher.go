@@ -36,6 +36,13 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 		return CmdCompare(ctx, r.clients, args)
 	case "tvl":
 		return CmdTVL(ctx, r.clients, args)
+
+	// 🔥 Baru ditambahkan:
+	case "tvlchain":
+		return CmdTVLChain(ctx, r.clients, args)
+	case "tvlprotocols":
+		return CmdTVLProtocols(ctx, r.clients, args)
+
 	case "top":
 		return CmdTop(ctx, r.clients, args)
 	case "digest":
