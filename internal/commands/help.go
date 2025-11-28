@@ -13,65 +13,52 @@ compare [symbol1] [symbol2]
 
 tvl [protocol]
   Show DeFi protocol TVL (Total Value Locked) from DefiLlama.
-  Use protocol slug style.
   Examples:
     tvl uniswap
     tvl curve-finance
 
+tvlchain [chain]
+  Show total TVL for a blockchain network.
+  Examples:
+    tvlchain ethereum
+    tvlchain solana
+
+tvlprotocols [chain]
+  Show top DeFi protocols on a chain by TVL.
+  Examples:
+    tvlprotocols arbitrum
+    tvlprotocols avalanche
+
 top [limit]
-  List top coins by market cap (default 10, max 50).
+  List top coins by market cap.
   Examples:
     top
     top 20
 
 digest [daily|now]
-  Market summary for top 5 coins by market cap.
-  Examples:
-    digest
-    digest daily
+  Market summary for top 5 coins.
 
 convert [amount] [from] [to]
-  Convert between coins/fiat using CoinGecko prices.
-  Examples:
-    convert 1 btc eth
-    convert 250 usdt sol
+  Convert between coins/fiat.
 
 gainers_cex [limit]
   Show top gainers on major CEX (Coinbase, OKX, MEXC, KuCoin, Bitget).
-  Examples:
-    gainers_cex
-    gainers_cex 10
 
 gainers_compare [limit] [cex1] [cex2]
-  Compare top gainers between two supported CEX.
-  Supported CEX: coinbase, okx, mexc, kucoin, bitget
-  Examples:
-    gainers_compare 5 coinbase okx
-    gainers_compare 3 mexc kucoin
+  Compare top gainers between two CEX.
 
 alert [symbol] [condition]
-  Create price alert with operator >, <, >=, <=.
-  Examples:
-    alert btc >65000
-    alert eth <=3000
+  Create price alert.
 
 alert_list
-  Show all active alerts.
-  Example:
-    alert_list
+  Show all alerts.
 
 alert_remove [index]
-  Remove an alert by its index (see alert_list).
-  Example:
-    alert_remove 0
+  Remove an alert.
 
 alert_clear
   Remove all alerts.
-  Example:
-    alert_clear
 
 help
-  Show this help message again.
-  Example:
-    help`
+  Show this help message again.`
 }
