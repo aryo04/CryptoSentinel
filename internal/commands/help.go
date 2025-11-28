@@ -58,6 +58,19 @@ alert_remove [index]
 
 alert_clear
   Remove all alerts.
+  
+gainers [limit]
+  Show top daily gainers (CoinGecko).
+  Examples:
+  gainers limit 10
+
+losers [limit]
+  Show top daily losers (CoinGecko).
+  Examples:
+  losers limit 10
+
+feargreed
+  Show the global Crypto Fear & Greed Index.
 
 help
   Show this help message again.`
