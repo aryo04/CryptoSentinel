@@ -64,6 +64,16 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 		return CmdAlertRemove(r.alerts, args)
 	case "alert_clear":
 		return CmdAlertClear(r.alerts)
+	case "news":
+		return CmdNews(ctx, args)
+	case "gas":
+		return CmdGas(ctx, args)
+	case "dexprice":
+		return CmdDexPrice(ctx, args)
+	case "portfolio":
+		return CmdPortfolio(ctx, args)
+	case "whales":
+		return CmdWhales(ctx, args)
 	case "help":
 		return HelpText(), nil
 	default:
