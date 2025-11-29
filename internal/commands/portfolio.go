@@ -15,7 +15,7 @@ import (
 
 // HTTP client khusus portfolio (Covalent)
 var portfolioHTTPClient = &http.Client{
-	Timeout: 60 * time.Second, // 1 menit
+	Timeout: 90 * time.Second, // 1 menit
 }
 
 // Response struct disederhanakan sesuai /v1/allchains/address/{walletAddress}/balances/
