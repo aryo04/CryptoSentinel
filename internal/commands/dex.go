@@ -120,7 +120,6 @@ var memeTokensByChain = map[string][]MemeToken{
 		{Symbol: "bob", Name: "Bob Token"},
 		{Symbol: "kek", Name: "KEK"},
 		{Symbol: "rekt", Name: "Rekt"},
-		{Symbol: "dogelon2", Name: "Dogelon Variant"},
 		{Symbol: "pepe2", Name: "Pepe 2.0"},
 		{Symbol: "pepe3", Name: "Pepe 3.0"},
 	},
@@ -253,7 +252,6 @@ func pickRandomTokens(all []MemeToken, n int) []MemeToken {
 		return nil
 	}
 	if len(all) <= n {
-		// kalau stok sedikit, pakai semua (tapi diacak)
 		shuffled := make([]MemeToken, len(all))
 		copy(shuffled, all)
 		dexRand.Shuffle(len(shuffled), func(i, j int) {
@@ -270,7 +268,7 @@ func pickRandomTokens(all []MemeToken, n int) []MemeToken {
 	return shuffled[:n]
 }
 
-// ====== Helper umum: cari pair terbaik via DexScreener search ======
+// ====== Helper utama: cari pair terbaik via DexScreener search ======
 
 func searchBestDexPair(ctx context.Context, token, chain string) (*dexScreenerPair, error) {
 	token = strings.ToLower(token)
@@ -303,30 +301,25 @@ func searchBestDexPair(ctx context.Context, token, chain string) (*dexScreenerPa
 		return nil, nil // not found
 	}
 
-	// Pilih pair yang paling relevan (cocok chain dulu)
+	// STRICT: hanya pair dengan ChainId persis = chain
 	var best *dexScreenerPair
 	for i := range data.Pairs {
 		p := &data.Pairs[i]
-		if strings.EqualFold(p.ChainId, chain) ||
-			strings.Contains(strings.ToLower(p.ChainId), chain) {
+		if strings.EqualFold(p.ChainId, chain) {
 			best = p
 			break
 		}
 	}
-	if best == nil {
-		// fallback: pakai pair pertama
-		best = &data.Pairs[0]
-	}
+
+	// kalau nggak ada chain yg match, anggap not found (jangan fallback ke chain lain)
 	return best, nil
 }
 
 // ====== Helper format angka ======
 
 func formatUsdFloat(v float64) string {
-	if v == 0 {
-		return "0"
-	}
-	return fmt.Sprintf("%,.0f", v)
+	// tanpa ribuan dulu, biar aman
+	return fmt.Sprintf("%.0f", v)
 }
 
 func formatPriceUsdStr(s string) string {
@@ -354,7 +347,8 @@ func CmdDexPrice(ctx context.Context, args []string) (string, error) {
 
 	p, err := searchBestDexPair(ctx, token, chain)
 	if err != nil {
-		return "", err
+		// jangan bikin bot error generic, kirim pesan saja
+		return fmt.Sprintf("Error fetching price from DexScreener: %v", err), nil
 	}
 	if p == nil {
 		return fmt.Sprintf("No DEX pairs found for %s on %s", token, chain), nil
@@ -386,7 +380,7 @@ func CmdDexPrice(ctx context.Context, args []string) (string, error) {
 }
 
 // ====== Command 2: dexmeme [chain] ======
-// Menampilkan 5 meme token random dari pool per chain (jadi nggak itu-itu aja)
+// Menampilkan 5 meme token random dari pool per chain
 
 func CmdDexMeme(ctx context.Context, args []string) (string, error) {
 	chain := "ethereum"
@@ -405,7 +399,6 @@ func CmdDexMeme(ctx context.Context, args []string) (string, error) {
 		), nil
 	}
 
-	// pilih 5 token random dari pool
 	selected := pickRandomTokens(allTokens, 5)
 
 	builder := &strings.Builder{}
