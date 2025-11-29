@@ -14,13 +14,15 @@ import (
 )
 
 // CEX yang dipakai agent sekarang:
-// - coinbase (Coinbase Exchange, spot USD pairs besar saja)
+// - coinbase
+// - binance
 // - okx
+// - bybit
 // - mexc
 // - kucoin
 // - bitget
 func SupportedCexList() []string {
-	return []string{"coinbase", "okx", "mexc", "kucoin", "bitget"}
+	return []string{"coinbase", "binance", "okx", "bybit", "mexc", "kucoin", "bitget"}
 }
 
 func IsSupportedCex(name string) bool {
@@ -37,8 +39,12 @@ func (c *Clients) FetchCexGainers(ctx context.Context, cex string, limit int) ([
 	switch strings.ToLower(cex) {
 	case "coinbase":
 		return c.fetchCoinbaseGainers(ctx, limit)
+	case "binance":
+		return c.fetchBinanceGainers(ctx, limit)
 	case "okx":
 		return c.fetchOkxGainers(ctx, limit)
+	case "bybit":
+		return c.fetchBybitGainers(ctx, limit)
 	case "mexc":
 		return c.fetchMexcGainers(ctx, limit)
 	case "kucoin":
@@ -142,6 +148,67 @@ func (c *Clients) fetchCoinbaseGainers(ctx context.Context, limit int) ([]models
 }
 
 //
+// -------- Binance ----------
+//
+// Endpoint: GET https://api.binance.com/api/v3/ticker/24hr
+// Mengembalikan list semua simbol dengan lastPrice & priceChangePercent.
+//
+func (c *Clients) fetchBinanceGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
+	endpoint := "https://api.binance.com/api/v3/ticker/24hr"
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("binance status: %d", resp.StatusCode)
+	}
+
+	var arr []struct {
+		Symbol             string `json:"symbol"`
+		LastPrice          string `json:"lastPrice"`
+		PriceChangePercent string `json:"priceChangePercent"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&arr); err != nil {
+		return nil, err
+	}
+
+	var list []models.CexGainer
+	for _, t := range arr {
+		// fokus USDT pairs
+		if !strings.HasSuffix(t.Symbol, "USDT") {
+			continue
+		}
+		price, err1 := strconv.ParseFloat(t.LastPrice, 64)
+		chg, err2 := strconv.ParseFloat(t.PriceChangePercent, 64)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		list = append(list, models.CexGainer{
+			Exchange:  "binance",
+			Symbol:    t.Symbol,
+			Price:     price,
+			ChangePct: chg,
+		})
+	}
+
+	if len(list) == 0 {
+		return nil, fmt.Errorf("no binance data")
+	}
+
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].ChangePct > list[j].ChangePct
+	})
+	if len(list) > limit {
+		list = list[:limit]
+	}
+	return list, nil
+}
+
+//
 // -------- OKX (tetap seperti sebelumnya) ----------
 //
 func (c *Clients) fetchOkxGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
@@ -195,11 +262,81 @@ func (c *Clients) fetchOkxGainers(ctx context.Context, limit int) ([]models.CexG
 }
 
 //
+// -------- Bybit ----------
+//
+// Endpoint: GET https://api.bybit.com/v5/market/tickers?category=spot
+// Field utama:
+//   - symbol
+//   - lastPrice
+//   - price24hPcnt  (rasio, misal 0.1234 = 12.34%)
+//
+func (c *Clients) fetchBybitGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
+	endpoint := "https://api.bybit.com/v5/market/tickers?category=spot"
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("bybit status: %d", resp.StatusCode)
+	}
+
+	var data struct {
+		Result struct {
+			List []struct {
+				Symbol       string `json:"symbol"`
+				LastPrice    string `json:"lastPrice"`
+				Price24hPcnt string `json:"price24hPcnt"`
+			} `json:"list"`
+		} `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+
+	var list []models.CexGainer
+	for _, t := range data.Result.List {
+		if !strings.HasSuffix(t.Symbol, "USDT") {
+			continue
+		}
+		last, err1 := strconv.ParseFloat(t.LastPrice, 64)
+		pcnt, err2 := strconv.ParseFloat(t.Price24hPcnt, 64)
+		if err1 != nil || err2 != nil {
+			continue
+		}
+		// Bybit kirim rasio (0.1234); kita ubah ke %.
+		chg := pcnt * 100
+
+		list = append(list, models.CexGainer{
+			Exchange:  "bybit",
+			Symbol:    t.Symbol,
+			Price:     last,
+			ChangePct: chg,
+		})
+	}
+
+	if len(list) == 0 {
+		return nil, fmt.Errorf("no bybit data")
+	}
+
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].ChangePct > list[j].ChangePct
+	})
+	if len(list) > limit {
+		list = list[:limit]
+	}
+	return list, nil
+}
+
+//
 // -------- MEXC ----------
 //
 // Menggunakan Spot v3 Market Data API:
 //   GET https://api.mexc.com/api/v3/ticker/24hr
-//   - Mengembalikan list semua simbol dengan priceChangePercent & lastPrice. :contentReference[oaicite:2]{index=2}
+//   - Mengembalikan list semua simbol dengan priceChangePercent & lastPrice.
 //
 func (c *Clients) fetchMexcGainers(ctx context.Context, limit int) ([]models.CexGainer, error) {
 	endpoint := "https://api.mexc.com/api/v3/ticker/24hr"
