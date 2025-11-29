@@ -48,17 +48,20 @@ func CmdGainersCEX(ctx context.Context, cl *clients.Clients, args []string) (str
 
 func CmdGainersCompare(ctx context.Context, cl *clients.Clients, args []string) (string, error) {
 	if len(args) < 3 {
-		return "Usage: gainers_compare [limit] [cex1] [cex2]\nExample: gainers_compare 5 binance okx", nil
+		return "Usage: gainers_compare [limit] [cex1] [cex2]\n" +
+			"Example: gainers_compare 5 binance okx", nil
 	}
+
 	limit, err := strconv.Atoi(args[0])
 	if err != nil || limit <= 0 || limit > 50 {
 		return "Invalid limit. Use number 1–50.", nil
 	}
+
 	cex1 := strings.ToLower(args[1])
 	cex2 := strings.ToLower(args[2])
 
 	if !clients.IsSupportedCex(cex1) || !clients.IsSupportedCex(cex2) {
-		return "Supported CEX: binance, okx, bybit, kucoin, bitget", nil
+		return "Supported CEX: coinbase, binance, okx, bybit, mexc, kucoin, bitget", nil
 	}
 
 	g1, err1 := cl.FetchCexGainers(ctx, cex1, limit)
