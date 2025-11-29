@@ -74,10 +74,8 @@ var dexChainAliases = map[string]string{
 	"matic":   "polygon",
 	"polygon": "polygon",
 
-	"op":        "optimism",
-	"optimism":  "optimism",
-	"opt":       "optimism",
-	"optimstic": "optimism",
+	"op":       "optimism",
+	"optimism": "optimism",
 }
 
 func normalizeChainName(chain string) string {
@@ -88,92 +86,154 @@ func normalizeChainName(chain string) string {
 	return c
 }
 
-// ====== Pool meme tokens per chain (banyak, nanti di-random 5) ======
+// ====== Meme token struct (mapping simbol + nama) ======
 
-var memeTokensByChain = map[string][]string{
+type MemeToken struct {
+	Symbol string // ticker, untuk query DexScreener
+	Name   string // nama token lebih lengkap, untuk display
+}
+
+// ====== Pool meme tokens per chain (banyak & real, dipilih random 5) ======
+
+var memeTokensByChain = map[string][]MemeToken{
+	// ===== Ethereum (ERC-20 meme coins) =====
 	"ethereum": {
-		"pepe",
-		"mog",
-		"shib",
-		"floki",
-		"doge",
-		"bonkler",
-		"turbo",
-		"pepe2",
-		"psp",
-		"wifhat",
+		{Symbol: "pepe", Name: "Pepe"},
+		{Symbol: "shib", Name: "Shiba Inu"},
+		{Symbol: "floki", Name: "Floki Inu"},
+		{Symbol: "doge", Name: "Wrapped Dogecoin"},
+		{Symbol: "wojak", Name: "Wojak"},
+		{Symbol: "turbo", Name: "Turbo"},
+		{Symbol: "mog", Name: "Mog Coin"},
+		{Symbol: "ladys", Name: "Milady Meme Coin"},
+		{Symbol: "pork", Name: "PepeFork (PORK)"},
+		{Symbol: "vitainu", Name: "Vita Inu"},
+		{Symbol: "elon", Name: "Dogelon Mars"},
+		{Symbol: "akita", Name: "Akita Inu"},
+		{Symbol: "kishu", Name: "Kishu Inu"},
+		{Symbol: "hoge", Name: "Hoge Finance"},
+		{Symbol: "bone", Name: "Bone ShibaSwap"},
+		{Symbol: "leash", Name: "Doge Killer (LEASH)"},
+		{Symbol: "ape", Name: "ApeCoin"},
+		{Symbol: "spx", Name: "SPX6900"},
+		{Symbol: "bonkler", Name: "Bonkler"},
+		{Symbol: "bob", Name: "Bob Token"},
+		{Symbol: "kek", Name: "KEK"},
+		{Symbol: "rekt", Name: "Rekt"},
+		{Symbol: "dogelon2", Name: "Dogelon Variant"},
+		{Symbol: "pepe2", Name: "Pepe 2.0"},
+		{Symbol: "pepe3", Name: "Pepe 3.0"},
 	},
+
+	// ===== Solana native meme coins =====
 	"solana": {
-		"bonk",
-		"wif",
-		"popcat",
-		"wen",
-		"dogwifhat",
-		"samoyed",
-		"jeets",
-		"pnut",
-		"ponke",
-		"bome",
+		{Symbol: "bonk", Name: "BONK"},
+		{Symbol: "wif", Name: "dogwifhat"},
+		{Symbol: "popcat", Name: "Popcat"},
+		{Symbol: "bome", Name: "BOOK OF MEME"},
+		{Symbol: "mew", Name: "Cat in a Dogs World"},
+		{Symbol: "ponke", Name: "PONKE"},
+		{Symbol: "michi", Name: "MICHI"},
+		{Symbol: "samo", Name: "Samoyedcoin"},
+		{Symbol: "slerf", Name: "SLERF"},
+		{Symbol: "jeet", Name: "JEET"},
+		{Symbol: "boden", Name: "BODEN"},
+		{Symbol: "pippin", Name: "Pippin"},
+		{Symbol: "ban", Name: "Ban"},
+		{Symbol: "tuf", Name: "TUF"},
+		{Symbol: "wolf", Name: "Wolf on Sol"},
+		{Symbol: "pnut", Name: "Peanut"},
+		{Symbol: "kitty", Name: "Kitty on Sol"},
+		{Symbol: "tate", Name: "TATE"},
 	},
+
+	// ===== BNB Chain / BSC meme coins =====
 	"bsc": {
-		"babydoge",
-		"floki",
-		"pepe",
-		"meme",
-		"doge",
-		"cheems",
-		"shib",
-		"babyshib",
-		"cakepunks",
-		"minidoge",
+		{Symbol: "babydoge", Name: "Baby Doge Coin"},
+		{Symbol: "shib", Name: "Shiba Inu (BSC)"},
+		{Symbol: "doge", Name: "Dogecoin (BSC)"},
+		{Symbol: "floki", Name: "Floki Inu (BSC)"},
+		{Symbol: "safemoon", Name: "SafeMoon"},
+		{Symbol: "cake", Name: "PancakeSwap"},
+		{Symbol: "poodl", Name: "Poodl Token"},
+		{Symbol: "akita", Name: "Akita Inu (BSC)"},
+		{Symbol: "kishu", Name: "Kishu Inu (BSC)"},
+		{Symbol: "hoge", Name: "Hoge Finance (BSC)"},
+		{Symbol: "elon", Name: "Dogelon Mars (BSC)"},
+		{Symbol: "wojak", Name: "Wojak (BSC)"},
+		{Symbol: "pepe", Name: "Pepe (BSC)"},
+		{Symbol: "pepe2", Name: "Pepe 2.0 (BSC)"},
+		{Symbol: "doki", Name: "Doki Doki"},
+		{Symbol: "doggy", Name: "Doggy"},
+		{Symbol: "moon", Name: "Moon Token"},
+		{Symbol: "meme", Name: "Meme Token"},
 	},
+
+	// ===== Base chain meme coins =====
 	"base": {
-		"degen",
-		"brian",
-		"toshi",
-		"pepe",
-		"mog",
-		"based",
-		"basedpepe",
-		"turbobase",
-		"doginme",
-		"catinme",
+		{Symbol: "brett", Name: "Brett on Base"},
+		{Symbol: "degen", Name: "Degen"},
+		{Symbol: "toshi", Name: "Toshi"},
+		{Symbol: "brian", Name: "Brian"},
+		{Symbol: "based", Name: "Based"},
+		{Symbol: "mfer", Name: "mfercoin"},
+		{Symbol: "tybg", Name: "TYBG (Thank You Base God)"},
+		{Symbol: "doginme", Name: "Dog in Me"},
+		{Symbol: "catinme", Name: "Cat in Me"},
+		{Symbol: "pepe", Name: "Pepe on Base"},
+		{Symbol: "mog", Name: "Mog on Base"},
+		{Symbol: "bongocat", Name: "Bongo Cat"},
+		{Symbol: "smol", Name: "Smol Base Meme"},
+		{Symbol: "blue", Name: "Blue Base"},
+		{Symbol: "fish", Name: "Fish on Base"},
 	},
+
+	// ===== Arbitrum meme coins =====
 	"arbitrum": {
-		"arbinu",
-		"arbshib",
-		"magicpepe",
-		"arbpepe",
-		"arbfloki",
-		"arbinu2",
-		"arbinu3",
-		"arbwif",
-		"arbcat",
-		"arbmemes",
+		{Symbol: "aidoge", Name: "AI Doge"},
+		{Symbol: "caw", Name: "A Hunters Dream (CAW)"},
+		{Symbol: "pogai", Name: "Poor Guy (POGAI)"},
+		{Symbol: "nut", Name: "Nutcoin"},
+		{Symbol: "smol", Name: "SmolCoin"},
+		{Symbol: "twoge", Name: "Twoge Inu"},
+		{Symbol: "gnome", Name: "Gnome"},
+		{Symbol: "nyan", Name: "ArbiNYAN"},
+		{Symbol: "grimace", Name: "Grimace (ARB)"},
+		{Symbol: "arbinu", Name: "ArbInu"},
+		{Symbol: "arbpepe", Name: "ArbPepe"},
+		{Symbol: "arbfloki", Name: "ArbFloki"},
+		{Symbol: "arbwif", Name: "ArbWIF"},
+		{Symbol: "arbshib", Name: "ArbShib"},
+		{Symbol: "arbcat", Name: "ArbCat"},
 	},
+
+	// ===== Polygon POS =====
 	"polygon": {
-		"polyshib",
-		"polydoge",
-		"polyfloki",
-		"polypepe",
-		"dogechain",
-		"maticdoge",
-		"polymeme",
-		"polybonk",
-		"polycat",
-		"polywif",
+		{Symbol: "doge", Name: "Dogecoin (Polygon)"},
+		{Symbol: "shib", Name: "Shiba Inu (Polygon)"},
+		{Symbol: "floki", Name: "Floki (Polygon)"},
+		{Symbol: "pepe", Name: "Pepe (Polygon)"},
+		{Symbol: "wojak", Name: "Wojak (Polygon)"},
+		{Symbol: "kishu", Name: "Kishu (Polygon)"},
+		{Symbol: "akita", Name: "Akita (Polygon)"},
+		{Symbol: "elon", Name: "Dogelon (Polygon)"},
+		{Symbol: "babydoge", Name: "Baby Doge (Polygon)"},
+		{Symbol: "hoge", Name: "Hoge (Polygon)"},
+		{Symbol: "meme", Name: "Meme Token (Polygon)"},
 	},
+
+	// ===== Optimism =====
 	"optimism": {
-		"opdoge",
-		"opshib",
-		"oppepe",
-		"opmeme",
-		"optimeme",
-		"opfloki",
-		"opbonk",
-		"opwif",
-		"opcat",
-		"opfrog",
+		{Symbol: "pepe", Name: "Pepe (Optimism)"},
+		{Symbol: "shib", Name: "Shiba Inu (Optimism)"},
+		{Symbol: "doge", Name: "Dogecoin (Optimism)"},
+		{Symbol: "floki", Name: "Floki (Optimism)"},
+		{Symbol: "wojak", Name: "Wojak (Optimism)"},
+		{Symbol: "bonk", Name: "BONK (Optimism)"},
+		{Symbol: "wif", Name: "WIF (Optimism)"},
+		{Symbol: "degen", Name: "Degen (Optimism)"},
+		{Symbol: "mfer", Name: "mfercoin (Optimism)"},
+		{Symbol: "dogelon", Name: "Dogelon Mars (Optimism)"},
 	},
 }
 
@@ -188,13 +248,13 @@ func supportedMemeChains() string {
 
 // ====== Helper: pilih N token random, tidak selalu sama ======
 
-func pickRandomTokens(all []string, n int) []string {
+func pickRandomTokens(all []MemeToken, n int) []MemeToken {
 	if len(all) == 0 {
 		return nil
 	}
 	if len(all) <= n {
-		// kalau stok sedikit, pakai semua (urutan acak sedikit)
-		shuffled := make([]string, len(all))
+		// kalau stok sedikit, pakai semua (tapi diacak)
+		shuffled := make([]MemeToken, len(all))
 		copy(shuffled, all)
 		dexRand.Shuffle(len(shuffled), func(i, j int) {
 			shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
@@ -202,7 +262,7 @@ func pickRandomTokens(all []string, n int) []string {
 		return shuffled
 	}
 
-	shuffled := make([]string, len(all))
+	shuffled := make([]MemeToken, len(all))
 	copy(shuffled, all)
 	dexRand.Shuffle(len(shuffled), func(i, j int) {
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
@@ -351,21 +411,27 @@ func CmdDexMeme(ctx context.Context, args []string) (string, error) {
 	builder := &strings.Builder{}
 	fmt.Fprintf(builder, "🐸 Random meme tokens on %s (DexScreener)\n\n", chain)
 
-	for i, symbol := range selected {
-		p, err := searchBestDexPair(ctx, symbol, chain)
+	for i, t := range selected {
+		p, err := searchBestDexPair(ctx, t.Symbol, chain)
 		if err != nil {
-			fmt.Fprintf(builder, "%d) %s — error: %v\n\n", i+1, strings.ToUpper(symbol), err)
+			fmt.Fprintf(builder, "%d) %s — error: %v\n\n", i+1, strings.ToUpper(t.Symbol), err)
 			continue
 		}
 		if p == nil {
-			fmt.Fprintf(builder, "%d) %s — pair not found on %s\n\n", i+1, strings.ToUpper(symbol), chain)
+			fmt.Fprintf(builder, "%d) %s — pair not found on %s\n\n", i+1, strings.ToUpper(t.Symbol), chain)
 			continue
 		}
 
 		priceStr := formatPriceUsdStr(p.PriceUsd)
 
+		displayName := t.Name
+		if displayName == "" {
+			displayName = p.BaseToken.Name
+		}
+
 		fmt.Fprintf(builder,
 			"%d) %s (%s)\n"+
+				"   Name: %s\n"+
 				"   Pair: %s / %s (%s)\n"+
 				"   Price: $%s\n"+
 				"   Liquidity: $%s\n"+
@@ -375,6 +441,7 @@ func CmdDexMeme(ctx context.Context, args []string) (string, error) {
 			i+1,
 			strings.ToUpper(p.BaseToken.Symbol),
 			p.ChainId,
+			displayName,
 			p.BaseToken.Symbol,
 			p.QuoteToken.Symbol,
 			p.QuoteToken.Name,
