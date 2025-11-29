@@ -1,11 +1,22 @@
 package clients
 
-import "net/http"
+import (
+	"net/http"
+	"os"
+)
 
 type Clients struct {
-	HTTP *http.Client
+	HTTP      *http.Client
+	CMCAPIKey string
 }
 
 func NewClients(httpClient *http.Client) *Clients {
-	return &Clients{HTTP: httpClient}
+	if httpClient == nil {
+		httpClient = &http.Client{}
+	}
+
+	return &Clients{
+		HTTP:      httpClient,
+		CMCAPIKey: os.Getenv("CMC_API_KEY"),
+	}
 }
