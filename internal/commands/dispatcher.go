@@ -76,6 +76,8 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 	// DEX price (Dexscreener)
 	case "dexprice":
 		return CmdDexPrice(ctx, args)
+	case "dexmeme":
+    	return CmdDexMeme(ctx, args)
 
 	// Portfolio (DeBank)
 	case "portfolio":
