@@ -54,19 +54,25 @@ Market lists:
     Example:
       losers 15
 
-CEX gainers:
+CEX gainers & losers:
   gainers_cex [limit]
-    Show top gainers on major CEX (Coinbase, OKX, MEXC, KuCoin, Bitget).
+    Show top gainers on major CEX (Coinbase, Binance, OKX, Bybit, MEXC, KuCoin, Bitget).
     Examples:
       gainers_cex
       gainers_cex 10
 
+  losers_cex [limit]
+    Show top losers on the same CEX set.
+    Examples:
+      losers_cex
+      losers_cex 10
+
   gainers_compare [limit] [cex1] [cex2]
     Compare top gainers between two supported CEX.
     Supported CEX:
-      coinbase, okx, mexc, kucoin, bitget
+      coinbase, binance, okx, bybit, mexc, kucoin, bitget
     Examples:
-      gainers_compare 5 coinbase okx
+      gainers_compare 5 binance okx
       gainers_compare 3 mexc kucoin
 
 Conversions:
@@ -104,7 +110,7 @@ DEX price:
 
 Portfolio:
   portfolio [address]
-    Show DeFi/crypto portfolio summary for a wallet via DeBank.
+    Show crypto portfolio summary for a wallet (via Covalent / DeBank-style APIs).
     Example:
       portfolio 0x1234...abcd
 
