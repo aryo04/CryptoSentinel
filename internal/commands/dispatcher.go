@@ -63,9 +63,11 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 	case "convert":
 		return CmdConvert(ctx, r.clients, args)
 
-	// CEX gainers
+	// CEX gainers / losers
 	case "gainers_cex":
 		return CmdGainersCEX(ctx, r.clients, args)
+	case "losers_cex":
+		return CmdLosersCEX(ctx, r.clients, args)
 	case "gainers_compare":
 		return CmdGainersCompare(ctx, r.clients, args)
 
@@ -77,9 +79,9 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 	case "dexprice":
 		return CmdDexPrice(ctx, args)
 	case "dexmeme":
-    	return CmdDexMeme(ctx, args)
+		return CmdDexMeme(ctx, args)
 
-	// Portfolio (DeBank)
+	// Portfolio
 	case "portfolio":
 		return CmdPortfolio(ctx, args)
 
