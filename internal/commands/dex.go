@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"sort"
@@ -12,8 +13,11 @@ import (
 	"time"
 )
 
-// HTTP client untuk DexScreener
+// HTTP client khusus DexScreener
 var dexHTTPClient = &http.Client{Timeout: 15 * time.Second}
+
+// RNG untuk pilih token random
+var dexRand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // ====== Struct untuk /latest/dex/search ======
 
@@ -50,60 +54,169 @@ type dexScreenerSearchResponse struct {
 	Pairs         []dexScreenerPair `json:"pairs"`
 }
 
-// ====== Chain alias & normalisasi nama chain ======
+// ====== Mapping alias chain (eth → ethereum, dll) ======
 
-// mapping alias → canonical name
 var dexChainAliases = map[string]string{
-	// Ethereum
 	"eth":      "ethereum",
 	"ethereum": "ethereum",
 
-	// Solana
 	"sol":     "solana",
 	"solana":  "solana",
 
-	// BSC
-	"bsc": "bsc",
 	"bnb": "bsc",
+	"bsc": "bsc",
 
-	// Base
-	"base": "base",
-
-	// Arbitrum
 	"arb":      "arbitrum",
 	"arbitrum": "arbitrum",
 
-	// Avalanche
-	"avax":      "avalanche",
-	"avalanche": "avalanche",
+	"base": "base",
+
+	"matic":   "polygon",
+	"polygon": "polygon",
+
+	"op":        "optimism",
+	"optimism":  "optimism",
+	"opt":       "optimism",
+	"optimstic": "optimism",
 }
 
 func normalizeChainName(chain string) string {
-	c := strings.ToLower(strings.TrimSpace(chain))
+	c := strings.ToLower(chain)
 	if v, ok := dexChainAliases[c]; ok {
 		return v
 	}
 	return c
 }
 
-func supportedDexChains() string {
-	// ambil semua nilai unik dari alias map
-	set := make(map[string]struct{})
-	for _, v := range dexChainAliases {
-		set[v] = struct{}{}
-	}
+// ====== Pool meme tokens per chain (banyak, nanti di-random 5) ======
 
-	chains := make([]string, 0, len(set))
-	for c := range set {
+var memeTokensByChain = map[string][]string{
+	"ethereum": {
+		"pepe",
+		"mog",
+		"shib",
+		"floki",
+		"doge",
+		"bonkler",
+		"turbo",
+		"pepe2",
+		"psp",
+		"wifhat",
+	},
+	"solana": {
+		"bonk",
+		"wif",
+		"popcat",
+		"wen",
+		"dogwifhat",
+		"samoyed",
+		"jeets",
+		"pnut",
+		"ponke",
+		"bome",
+	},
+	"bsc": {
+		"babydoge",
+		"floki",
+		"pepe",
+		"meme",
+		"doge",
+		"cheems",
+		"shib",
+		"babyshib",
+		"cakepunks",
+		"minidoge",
+	},
+	"base": {
+		"degen",
+		"brian",
+		"toshi",
+		"pepe",
+		"mog",
+		"based",
+		"basedpepe",
+		"turbobase",
+		"doginme",
+		"catinme",
+	},
+	"arbitrum": {
+		"arbinu",
+		"arbshib",
+		"magicpepe",
+		"arbpepe",
+		"arbfloki",
+		"arbinu2",
+		"arbinu3",
+		"arbwif",
+		"arbcat",
+		"arbmemes",
+	},
+	"polygon": {
+		"polyshib",
+		"polydoge",
+		"polyfloki",
+		"polypepe",
+		"dogechain",
+		"maticdoge",
+		"polymeme",
+		"polybonk",
+		"polycat",
+		"polywif",
+	},
+	"optimism": {
+		"opdoge",
+		"opshib",
+		"oppepe",
+		"opmeme",
+		"optimeme",
+		"opfloki",
+		"opbonk",
+		"opwif",
+		"opcat",
+		"opfrog",
+	},
+}
+
+func supportedMemeChains() string {
+	chains := make([]string, 0, len(memeTokensByChain))
+	for c := range memeTokensByChain {
 		chains = append(chains, c)
 	}
 	sort.Strings(chains)
 	return strings.Join(chains, ", ")
 }
 
-// ====== Helper HTTP ke DexScreener ======
+// ====== Helper: pilih N token random, tidak selalu sama ======
 
-func searchDexPairs(ctx context.Context, query string) ([]dexScreenerPair, error) {
+func pickRandomTokens(all []string, n int) []string {
+	if len(all) == 0 {
+		return nil
+	}
+	if len(all) <= n {
+		// kalau stok sedikit, pakai semua (urutan acak sedikit)
+		shuffled := make([]string, len(all))
+		copy(shuffled, all)
+		dexRand.Shuffle(len(shuffled), func(i, j int) {
+			shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+		})
+		return shuffled
+	}
+
+	shuffled := make([]string, len(all))
+	copy(shuffled, all)
+	dexRand.Shuffle(len(shuffled), func(i, j int) {
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	})
+	return shuffled[:n]
+}
+
+// ====== Helper umum: cari pair terbaik via DexScreener search ======
+
+func searchBestDexPair(ctx context.Context, token, chain string) (*dexScreenerPair, error) {
+	token = strings.ToLower(token)
+	chain = normalizeChainName(chain)
+
+	query := token + " " + chain
 	endpoint := "https://api.dexscreener.com/latest/dex/search?q=" + url.QueryEscape(query)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -126,96 +239,28 @@ func searchDexPairs(ctx context.Context, query string) ([]dexScreenerPair, error
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, fmt.Errorf("decode dexscreener error: %w", err)
 	}
-
-	return data.Pairs, nil
-}
-
-// cari pair terbaik untuk 1 token di 1 chain
-func searchBestDexPair(ctx context.Context, token, chain string) (*dexScreenerPair, error) {
-	token = strings.ToLower(strings.TrimSpace(token))
-	chain = normalizeChainName(chain)
-
-	query := token + " " + chain
-	pairs, err := searchDexPairs(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	if len(pairs) == 0 {
-		return nil, nil
+	if len(data.Pairs) == 0 {
+		return nil, nil // not found
 	}
 
-	// Filter by chain
-	var candidates []*dexScreenerPair
-	for i := range pairs {
-		p := &pairs[i]
-		cid := strings.ToLower(p.ChainId)
-		if cid == chain || strings.Contains(cid, chain) {
-			candidates = append(candidates, p)
+	// Pilih pair yang paling relevan (cocok chain dulu)
+	var best *dexScreenerPair
+	for i := range data.Pairs {
+		p := &data.Pairs[i]
+		if strings.EqualFold(p.ChainId, chain) ||
+			strings.Contains(strings.ToLower(p.ChainId), chain) {
+			best = p
+			break
 		}
 	}
-
-	if len(candidates) == 0 {
-		// fallback: pakai semua pair
-		for i := range pairs {
-			candidates = append(candidates, &pairs[i])
-		}
+	if best == nil {
+		// fallback: pakai pair pertama
+		best = &data.Pairs[0]
 	}
-
-	// pilih yang liquidity-nya terbesar
-	sort.Slice(candidates, func(i, j int) bool {
-		return candidates[i].Liquidity.Usd > candidates[j].Liquidity.Usd
-	})
-
-	return candidates[0], nil
+	return best, nil
 }
 
-// filter berdasarkan chain
-func filterPairsByChain(pairs []dexScreenerPair, chain string) []dexScreenerPair {
-	chain = normalizeChainName(chain)
-	out := make([]dexScreenerPair, 0, len(pairs))
-	for _, p := range pairs {
-		cid := strings.ToLower(p.ChainId)
-		if cid == chain || strings.Contains(cid, chain) {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
-// deduplicate by base token address
-func dedupPairsByBaseToken(pairs []dexScreenerPair) []dexScreenerPair {
-	seen := make(map[string]struct{})
-	out := make([]dexScreenerPair, 0, len(pairs))
-	for _, p := range pairs {
-		addr := strings.ToLower(strings.TrimSpace(p.BaseToken.Address))
-		if addr == "" {
-			// kalau nggak ada address, pakai symbol sebagai fallback
-			addr = "sym:" + strings.ToLower(p.BaseToken.Symbol)
-		}
-		if _, ok := seen[addr]; ok {
-			continue
-		}
-		seen[addr] = struct{}{}
-		out = append(out, p)
-	}
-	return out
-}
-
-// pilih top N berdasarkan volume 24h
-func pickTopByVolume(pairs []dexScreenerPair, limit int) []dexScreenerPair {
-	if len(pairs) == 0 {
-		return pairs
-	}
-	sort.Slice(pairs, func(i, j int) bool {
-		return pairs[i].Volume.H24 > pairs[j].Volume.H24
-	})
-	if len(pairs) > limit {
-		return pairs[:limit]
-	}
-	return pairs
-}
-
-// ====== Helper format angka/harga ======
+// ====== Helper format angka ======
 
 func formatUsdFloat(v float64) string {
 	if v == 0 {
@@ -229,9 +274,6 @@ func formatPriceUsdStr(s string) string {
 		return "N/A"
 	}
 	if v, err := strconv.ParseFloat(s, 64); err == nil {
-		if v == 0 {
-			return "0"
-		}
 		if v < 0.000001 {
 			return fmt.Sprintf("%.10f", v)
 		}
@@ -240,7 +282,7 @@ func formatPriceUsdStr(s string) string {
 	return s
 }
 
-// ====== Command: dexprice [token] [chain] ======
+// ====== Command 1: dexprice [token] [chain] ======
 
 func CmdDexPrice(ctx context.Context, args []string) (string, error) {
 	if len(args) < 2 {
@@ -283,40 +325,43 @@ func CmdDexPrice(ctx context.Context, args []string) (string, error) {
 	return out, nil
 }
 
-// ====== Command: dexmeme [chain] ======
-// Dinamis: cari token bertema "meme" di suatu chain, ambil top 5 by volume 24h.
+// ====== Command 2: dexmeme [chain] ======
+// Menampilkan 5 meme token random dari pool per chain (jadi nggak itu-itu aja)
 
 func CmdDexMeme(ctx context.Context, args []string) (string, error) {
 	chain := "ethereum"
 	if len(args) >= 1 && args[0] != "" {
-		chain = args[0]
-	}
-	chain = normalizeChainName(chain)
-
-	// query generik "meme <chain>"
-	query := "meme " + chain
-	pairs, err := searchDexPairs(ctx, query)
-	if err != nil {
-		return "", err
-	}
-	if len(pairs) == 0 {
-		return fmt.Sprintf("No meme-like pairs found for chain %s", chain), nil
+		chain = normalizeChainName(args[0])
+	} else {
+		chain = normalizeChainName(chain)
 	}
 
-	// filter berdasarkan chain yang diminta
-	pairs = filterPairsByChain(pairs, chain)
-	if len(pairs) == 0 {
-		return fmt.Sprintf("No meme-like pairs found for chain %s", chain), nil
+	allTokens, ok := memeTokensByChain[chain]
+	if !ok {
+		return fmt.Sprintf(
+			"Unknown chain: %s\nSupported chains: %s",
+			chain,
+			supportedMemeChains(),
+		), nil
 	}
 
-	// deduplicate base tokens dan ambil top 5 by volume
-	pairs = dedupPairsByBaseToken(pairs)
-	pairs = pickTopByVolume(pairs, 5)
+	// pilih 5 token random dari pool
+	selected := pickRandomTokens(allTokens, 5)
 
 	builder := &strings.Builder{}
-	fmt.Fprintf(builder, "🐸 Top meme-style tokens on %s (DexScreener)\n\n", chain)
+	fmt.Fprintf(builder, "🐸 Random meme tokens on %s (DexScreener)\n\n", chain)
 
-	for i, p := range pairs {
+	for i, symbol := range selected {
+		p, err := searchBestDexPair(ctx, symbol, chain)
+		if err != nil {
+			fmt.Fprintf(builder, "%d) %s — error: %v\n\n", i+1, strings.ToUpper(symbol), err)
+			continue
+		}
+		if p == nil {
+			fmt.Fprintf(builder, "%d) %s — pair not found on %s\n\n", i+1, strings.ToUpper(symbol), chain)
+			continue
+		}
+
 		priceStr := formatPriceUsdStr(p.PriceUsd)
 
 		fmt.Fprintf(builder,
