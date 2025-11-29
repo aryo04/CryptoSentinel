@@ -11,7 +11,8 @@ import (
 	"teneo-agent-demo1/internal/services"
 )
 
-// CmdTVLChain menampilkan total TVL per chain dari DefiLlama
+// CmdTVLChain shows total TVL for a chain from DefiLlama,
+// along with its rank and share of total DeFi TVL.
 // Usage: tvlchain [chain]
 // Example: tvlchain ethereum
 func CmdTVLChain(ctx context.Context, cl *clients.Clients, args []string) (string, error) {
@@ -19,7 +20,7 @@ func CmdTVLChain(ctx context.Context, cl *clients.Clients, args []string) (strin
 		return "Usage: tvlchain [chain]\nExample: tvlchain ethereum", nil
 	}
 
-	chain := strings.Join(args, " ")
+	chainInput := strings.Join(args, " ")
 
 	endpoint := "https://api.llama.fi/v2/chains"
 
@@ -44,19 +45,58 @@ func CmdTVLChain(ctx context.Context, cl *clients.Clients, args []string) (strin
 		return "", fmt.Errorf("decode error: %v", err)
 	}
 
-	target := strings.ToLower(strings.TrimSpace(chain))
-	for _, c := range chains {
-		if strings.EqualFold(c.Name, target) {
-			// TVL dari DefiLlama adalah float, kita bulatkan dan format pakai pemisah ribuan
-			tvlRounded := int64(c.TVL + 0.5)
+	target := strings.ToLower(strings.TrimSpace(chainInput))
 
-			return fmt.Sprintf(
-				"Chain TVL — %s\nTVL: $%s\nSource: DefiLlama",
-				c.Name,
-				services.IntComma(tvlRounded),
-			), nil
+	// Find target chain, compute global stats (total TVL, rank, dominance)
+	var (
+		foundIndex = -1
+		totalTVL   float64
+	)
+	for i, c := range chains {
+		totalTVL += c.TVL
+		if strings.EqualFold(c.Name, target) {
+			foundIndex = i
 		}
 	}
 
-	return fmt.Sprintf("Chain '%s' not found on DefiLlama.", chain), nil
+	if foundIndex == -1 {
+		return fmt.Sprintf("Chain '%s' not found on DefiLlama.", chainInput), nil
+	}
+
+	targetChain := chains[foundIndex]
+	tvl := targetChain.TVL
+	tvlRounded := int64(tvl + 0.5)
+
+	// Rank: how many chains have higher TVL
+	rank := 1
+	for _, c := range chains {
+		if c.TVL > tvl {
+			rank++
+		}
+	}
+	totalChains := len(chains)
+
+	// Share of total DeFi TVL (in %)
+	dominance := 0.0
+	if totalTVL > 0 {
+		dominance = tvl / totalTVL * 100.0
+	}
+
+	out := fmt.Sprintf(
+		"Chain TVL — %s\n"+
+			"Rank: #%d of %d tracked chains\n"+
+			"TVL: $%s\n"+
+			"Share of total DeFi TVL: %s%%\n\n"+
+			"Notes:\n"+
+			"- Rank and dominance are relative to all chains tracked by DefiLlama.\n"+
+			"- TVL is an approximate snapshot and may lag a few minutes behind on-chain data.\n\n"+
+			"Source: DefiLlama",
+		targetChain.Name,
+		rank,
+		totalChains,
+		services.IntComma(tvlRounded),
+		services.F(dominance),
+	)
+
+	return out, nil
 }
