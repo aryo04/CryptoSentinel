@@ -12,10 +12,10 @@ import (
 	"teneo-agent-demo1/internal/clients"
 )
 
-// CmdFearGreed mengambil Crypto Fear & Greed Index dari alternative.me
+// CmdFearGreed fetches the Crypto Fear & Greed Index from alternative.me
 // Usage: feargreed
 func CmdFearGreed(ctx context.Context, cl *clients.Clients, _ []string) (string, error) {
-	// Ambil 2 poin data (sekarang + 24h sebelumnya) supaya bisa tampilkan perubahan
+	// Fetch 2 data points (now + 24h ago) so we can show the change
 	const endpoint = "https://api.alternative.me/fng/?limit=2"
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -53,7 +53,7 @@ func CmdFearGreed(ctx context.Context, cl *clients.Clients, _ []string) (string,
 		curVal = 0
 	}
 
-	// parse timestamp → waktu manusiawi (UTC)
+	// Parse timestamp → human readable time (UTC)
 	var lastUpdate string
 	if ts, err := strconv.ParseInt(current.Timestamp, 10, 64); err == nil {
 		lastUpdate = time.Unix(ts, 0).UTC().Format("2006-01-02 15:04 MST")
@@ -61,7 +61,7 @@ func CmdFearGreed(ctx context.Context, cl *clients.Clients, _ []string) (string,
 		lastUpdate = current.Timestamp
 	}
 
-	// hitung perubahan vs 24h lalu (kalau datanya ada)
+	// Calculate change vs 24h ago (if available)
 	changeLine := ""
 	if len(data.Data) > 1 {
 		prev := data.Data[1]
@@ -78,7 +78,7 @@ func CmdFearGreed(ctx context.Context, cl *clients.Clients, _ []string) (string,
 		}
 	}
 
-	// sedikit note kontekstual biar lebih “berguna”
+	// Contextual note so it's actually useful
 	note := explainFearGreed(curVal, current.ValueClassification)
 
 	var b strings.Builder
@@ -94,31 +94,31 @@ func CmdFearGreed(ctx context.Context, cl *clients.Clients, _ []string) (string,
 	}
 
 	b.WriteString("Quick guide:\n")
-	b.WriteString("• 0–24   : Extreme Fear (kapitulasi / panic selling)\n")
-	b.WriteString("• 25–49  : Fear (sentimen masih negatif)\n")
-	b.WriteString("• 50–54  : Neutral (market seimbang)\n")
-	b.WriteString("• 55–74  : Greed (optimisme mulai tinggi)\n")
-	b.WriteString("• 75–100 : Extreme Greed (market panas, rawan koreksi)\n\n")
+	b.WriteString("• 0–24   : Extreme Fear (capitulation / panic selling)\n")
+	b.WriteString("• 25–49  : Fear (market still cautious / risk-off)\n")
+	b.WriteString("• 50–54  : Neutral (no clear dominance of bulls or bears)\n")
+	b.WriteString("• 55–74  : Greed (optimism rising, risk of FOMO entries)\n")
+	b.WriteString("• 75–100 : Extreme Greed (euphoria, market overheated and correction risk is high)\n\n")
 	b.WriteString("Source: alternative.me")
 
 	return b.String(), nil
 }
 
-// explainFearGreed memberi penjelasan singkat berdasarkan nilai index.
+// explainFearGreed returns a short interpretation line based on the index value.
 func explainFearGreed(value int, classification string) string {
 	class := strings.ToLower(classification)
 
 	switch {
 	case strings.Contains(class, "extreme fear") || value <= 24:
-		return "Interpretation: market sedang dalam zona *Extreme Fear*. Biasanya banyak pelaku pasar yang takut dan menjual di harga rendah. Ini bisa jadi area akumulasi jangka panjang, tapi risiko masih tinggi."
+		return "Interpretation: the market is in *Extreme Fear*. Many participants are scared and selling at low prices. This often aligns with long-term accumulation zones, but volatility and downside risk are still high."
 	case strings.Contains(class, "fear") || (value >= 25 && value <= 49):
-		return "Interpretation: market berada di zona *Fear*. Sentimen masih negatif, volatilitas bisa cukup tinggi. Trader agresif kadang mulai mencari entry di fase ini."
+		return "Interpretation: the market is in a *Fear* regime. Sentiment is negative and volatility can spike. Aggressive traders sometimes start looking for entries here."
 	case strings.Contains(class, "neutral") || (value >= 50 && value <= 54):
-		return "Interpretation: market berada di zona *Neutral*. Tidak terlalu bullish atau bearish. Cocok untuk observasi tren berikutnya dan menyiapkan rencana."
+		return "Interpretation: the market is *Neutral*. Neither bulls nor bears clearly dominate. Good phase to observe where the next major trend might build."
 	case strings.Contains(class, "greed") && value < 75:
-		return "Interpretation: market berada di zona *Greed*. Optimisme meningkat, harga sudah naik lumayan. Perlu disiplin risk management dan hindari FOMO."
+		return "Interpretation: the market is in *Greed* mode. Optimism is increasing and prices have already moved up. Stick to your risk management and avoid chasing green candles blindly."
 	case strings.Contains(class, "extreme greed") || value >= 75:
-		return "Interpretation: market berada di zona *Extreme Greed*. Euforia tinggi dan market cenderung overbought. Waspada potensi koreksi tajam."
+		return "Interpretation: the market is in *Extreme Greed*. Euphoria is high and assets can be overbought. Great time to be disciplined, rebalance, or secure profits rather than FOMO in."
 	default:
 		return ""
 	}
