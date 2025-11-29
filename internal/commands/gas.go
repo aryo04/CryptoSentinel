@@ -37,7 +37,7 @@ var gasChainMap = map[string]string{
 	"celo":      "celo",
 }
 
-// Label cantik + emoji buat output
+// Nice labels for output
 var gasPrettyName = map[string]string{
 	"eth":      "Ethereum",
 	"bsc":      "BSC",
@@ -51,6 +51,7 @@ var gasPrettyName = map[string]string{
 	"celo":     "Celo",
 }
 
+// Simple emoji “badge” per chain
 var gasEmoji = map[string]string{
 	"eth":      "🟦",
 	"bsc":      "🟨",
@@ -64,23 +65,23 @@ var gasEmoji = map[string]string{
 	"celo":     "🟨",
 }
 
-// Named type untuk 1 speed Owlracle
+// One speed entry from Owlracle
 type owlSpeed struct {
 	Name       string  `json:"name"`
-	Estimated  float64 `json:"estimatedFee,omitempty"`
+	Estimated  float64 `json:"estimatedFee,omitempty"` // est tx fee in native or USD depending on plan
 	GasPrice   float64 `json:"gasPrice"`
 	Unit       string  `json:"unit"`
 	Confidence float64 `json:"confidence,omitempty"`
 }
 
-// Struktur respons Owlracle
+// Owlracle response
 type owlracleGasResponse struct {
 	Chain  string     `json:"chain"`
 	Speeds []owlSpeed `json:"speeds"`
 }
 
 // CmdGas: gas [chain]
-// contoh: gas bsc, gas arbitrum
+// Example: gas ethereum
 func CmdGas(ctx context.Context, args []string) (string, error) {
 	if len(args) == 0 {
 		return "Usage: gas [chain]\nExample: gas ethereum", nil
@@ -107,6 +108,7 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 
 	resp, err := gasHTTPClient.Do(req)
 	if err != nil {
+		// User-facing message harus friendly
 		return "⚠️ Gas API error. Please try again later.", nil
 	}
 	defer resp.Body.Close()
@@ -123,7 +125,7 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 		return fmt.Sprintf("No gas data for chain %s", raw), nil
 	}
 
-	// Cari indeks slow / normal / fast
+	// Detect slow / normal / fast indexes
 	slowIdx, normalIdx, fastIdx := -1, -1, -1
 	for i := range data.Speeds {
 		s := &data.Speeds[i]
@@ -145,7 +147,7 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 		}
 	}
 
-	// fallback kalau tidak ketemu label "normal"
+	// Fallback if no explicit "normal" label
 	if normalIdx == -1 {
 		normalIdx = 0
 	}
@@ -162,16 +164,31 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s Gas tracker — %s\n", flag, prettyName)
 
+	// Helper to format each speed nicely
 	writeLine := func(label string, s *owlSpeed) {
 		if s == nil {
 			return
 		}
 
-		// Kalau gasPrice=0 tapi Estimated>0 → kemungkinan API pakai feeinusd
+		// Main price part
 		if s.GasPrice <= 0 && s.Estimated > 0 {
-			fmt.Fprintf(&b, "• %s: est. fee %s USD\n", label, services.F(s.Estimated))
+			// Some plans use estimatedFee only
+			fmt.Fprintf(&b, "• %s: est. tx cost %s (%s)\n", label, services.F(s.Estimated), s.Unit)
 		} else {
 			fmt.Fprintf(&b, "• %s: %s %s\n", label, services.F(s.GasPrice), s.Unit)
+		}
+
+		// Extra hints (confidence + estimated fee if both exist)
+		extras := make([]string, 0, 2)
+		if s.Confidence > 0 {
+			extras = append(extras, fmt.Sprintf("~%s%% confidence", services.F(s.Confidence)))
+		}
+		if s.GasPrice > 0 && s.Estimated > 0 {
+			// We don’t assume USD here, just show unit as provided
+			extras = append(extras, fmt.Sprintf("est. tx cost ~%s %s", services.F(s.Estimated), s.Unit))
+		}
+		if len(extras) > 0 {
+			fmt.Fprintf(&b, "    (%s)\n", strings.Join(extras, " · "))
 		}
 	}
 
@@ -185,6 +202,11 @@ func CmdGas(ctx context.Context, args []string) (string, error) {
 		writeLine("Fast", &data.Speeds[fastIdx])
 	}
 
+	b.WriteString("\nHints:\n")
+	b.WriteString("- Slow: cheaper but may take longer to confirm.\n")
+	b.WriteString("- Normal: balanced cost vs confirmation speed (default for most users).\n")
+	b.WriteString("- Fast: more expensive but higher chance to be included in the next blocks.\n")
 	b.WriteString("\nSource: Owlracle Gas API")
+
 	return b.String(), nil
 }
