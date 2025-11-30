@@ -1,13 +1,13 @@
 package clients
 
-import (
-	"net/http"
-	"os"
-)
+import "net/http"
 
 type Clients struct {
 	HTTP      *http.Client
-	CMCAPIKey string
+	CoinGecko *CoinGeckoClient
+	DefiLlama *DefiLlamaClient
+	CEX       *CEXClient
+	Whale     *WhaleClient
 }
 
 func NewClients(httpClient *http.Client) *Clients {
@@ -17,6 +17,9 @@ func NewClients(httpClient *http.Client) *Clients {
 
 	return &Clients{
 		HTTP:      httpClient,
-		CMCAPIKey: os.Getenv("CMC_API_KEY"),
+		CoinGecko: NewCoinGeckoClient(httpClient),
+		DefiLlama: NewDefiLlamaClient(httpClient),
+		CEX:       NewCEXClient(httpClient),
+		Whale:     NewWhaleClient(httpClient), // ← telah ditambahkan sesuai permintaan
 	}
 }
