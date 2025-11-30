@@ -1,6 +1,6 @@
 package commands
 
-import {
+import (
 	"context"
 	"fmt"
 	"strings"
