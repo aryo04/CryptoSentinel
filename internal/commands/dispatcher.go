@@ -99,6 +99,14 @@ func (r *Router) Handle(ctx context.Context, task string) (string, error) {
 	case "news":
 		return CmdNews(ctx, args)
 
+	// NEW: analytics commands
+	case "sentiment":
+		return CmdSentiment(ctx, r.clients, args)
+	case "volatility":
+		return CmdVolatility(ctx, r.clients, args)
+	case "trend":
+		return CmdTrend(ctx, r.clients, args)
+
 	// Help
 	case "help":
 		return HelpText(), nil
