@@ -132,6 +132,26 @@ Alerts:
   alert_clear
     Remove all alerts.
 
+Sentiment & analytics:
+  sentiment [symbol]
+    Analyze short-term market mood for a coin based on price performance
+    and volume activity.
+    Example:
+      sentiment btc
+
+  volatility [symbol]
+    Show recent price volatility (7d range) and classify it as
+    Low / Medium / High / Extreme.
+    Example:
+      volatility eth
+
+  trend [symbol]
+    Show short, mid, and long-term price trend using 7d / 30d / 90d
+    moving averages and classify the overall trend as bullish, bearish,
+    or sideways.
+    Example:
+      trend sol
+
 Meta:
   help
     Show this help message again.
