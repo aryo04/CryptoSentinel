@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"teneo-agent-demo1/internal/clients"
 	"teneo-agent-demo1/internal/services"
